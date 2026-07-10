@@ -1,13 +1,32 @@
 package com.ava.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.content.Intent
+import android.graphics.PixelFormat
 import android.util.Log
+import android.view.Gravity
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.widget.FrameLayout
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.*
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ava.agent.AgentLoop
 import com.ava.agent.GeminiClient
-import com.ava.overlay.AVAOverlayService
+import com.ava.agent.AgentState
+import com.ava.overlay.AVABanner
 import com.ava.util.AppLogger
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.StateFlow
 
 private const val TAG = "AVA:AccessibilityService"
 
@@ -24,10 +43,30 @@ private const val TAG = "AVA:AccessibilityService"
  * It is the single source of truth for device interaction — all other
  * components (AgentLoop, ActionExecutor) receive a reference to this service.
  */
-class AVAAccessibilityService : AccessibilityService() {
+class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
 
     private var agentLoop: AgentLoop? = null
     private var geminiClient: GeminiClient? = null
+
+    // ─── Lifecycle & SavedState boilerplate ──────────────────────────────────
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    private val store = ViewModelStore()
+
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
+    override val viewModelStore: ViewModelStore get() = store
+
+    // ─── Banner drawing state ───────────────────────────────────────────────
+    private var windowManager: WindowManager? = null
+    private var bannerContainer: FrameLayout? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private var statusText by mutableStateOf("Ready")
+    private var taskText by mutableStateOf("")
+    private var showUserPrompt by mutableStateOf(false)
+    private var userPromptText by mutableStateOf("")
 
     companion object {
         // Singleton reference so other components can reach the service
@@ -37,9 +76,16 @@ class AVAAccessibilityService : AccessibilityService() {
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
+    override fun onCreate() {
+        super.onCreate()
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        lifecycleRegistry.currentState = Lifecycle.State.STARTED
         AppLogger.i(TAG, "AVA Accessibility Service connected ✅")
 
         // Load API key from secure storage (set via MainActivity)
@@ -58,8 +104,12 @@ class AVAAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
+        hideBanner()
         agentLoop?.cancel()
         geminiClient?.close()
+        serviceScope.cancel()
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        store.clear()
         AppLogger.i(TAG, "AVA Accessibility Service destroyed")
     }
 
@@ -83,7 +133,91 @@ class AVAAccessibilityService : AccessibilityService() {
         agentLoop?.stop()
     }
 
-    // ─── Public API (called by AVAOverlayService) ──────────────────────────────
+    // ─── Banner management ────────────────────────────────────────────────────
+
+    private fun showBanner(task: String) {
+        if (bannerContainer != null) return // already showing
+
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        taskText = task
+        statusText = "Starting..."
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+        }
+
+        bannerContainer = FrameLayout(this).also { container ->
+            val composeView = ComposeView(this).apply {
+                setViewTreeLifecycleOwner(this@AVAAccessibilityService)
+                setViewTreeSavedStateRegistryOwner(this@AVAAccessibilityService)
+                setViewTreeViewModelStoreOwner(this@AVAAccessibilityService)
+                setContent {
+                    AVABanner(
+                        task = taskText,
+                        status = statusText,
+                        showUserPrompt = showUserPrompt,
+                        userPromptText = userPromptText,
+                        onStop = { stopTask() },
+                        onUserInput = { input -> provideUserInput(input) }
+                    )
+                }
+            }
+            container.addView(composeView)
+        }
+
+        try {
+            windowManager?.addView(bannerContainer, params)
+            lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+            AppLogger.i(TAG, "Banner shown directly by Accessibility Service ✅")
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to show banner: ${e.message}")
+        }
+    }
+
+    private fun hideBanner() {
+        bannerContainer?.let {
+            try {
+                windowManager?.removeView(it)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing banner: ${e.message}")
+            }
+        }
+        bannerContainer = null
+        lifecycleRegistry.currentState = Lifecycle.State.STARTED
+    }
+
+    private var stateObserverJob: Job? = null
+
+    private fun observeAgentState(stateFlow: StateFlow<AgentState>) {
+        stateObserverJob?.cancel()
+        stateObserverJob = serviceScope.launch {
+            stateFlow.collect { state ->
+                withContext(Dispatchers.Main) {
+                    taskText = state.task
+                    statusText = when {
+                        state.isDone -> "✅ Done"
+                        state.needsUser -> "❓ ${state.userMessage}"
+                        state.steps.isNotEmpty() -> state.steps.last()
+                        else -> "Thinking..."
+                    }
+                    showUserPrompt = state.needsUser
+                    userPromptText = state.userMessage
+                }
+            }
+        }
+    }
+
+    // ─── Public API ───────────────────────────────────────────────────────────
 
     fun startTask(task: String): Boolean {
         // Dynamic initialization to resolve setup-order bug
@@ -102,12 +236,8 @@ class AVAAccessibilityService : AccessibilityService() {
             return false
         }
 
-        // Start the overlay service so the banner appears
-        val overlayIntent = Intent(this, AVAOverlayService::class.java).apply {
-            action = AVAOverlayService.ACTION_START
-            putExtra(AVAOverlayService.EXTRA_TASK, task)
-        }
-        startService(overlayIntent)
+        showBanner(task)
+        observeAgentState(loop.state)
 
         // Start the agent
         loop.start(task)
@@ -115,16 +245,14 @@ class AVAAccessibilityService : AccessibilityService() {
         return true
     }
 
-    fun getAgentState(): kotlinx.coroutines.flow.StateFlow<com.ava.agent.AgentState>? {
+    fun getAgentState(): StateFlow<AgentState>? {
         return agentLoop?.state
     }
 
     fun stopTask() {
         agentLoop?.stop()
-        val overlayIntent = Intent(this, AVAOverlayService::class.java).apply {
-            action = AVAOverlayService.ACTION_STOP
-        }
-        startService(overlayIntent)
+        stateObserverJob?.cancel()
+        hideBanner()
     }
 
     fun provideUserInput(input: String) {

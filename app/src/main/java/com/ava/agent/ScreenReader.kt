@@ -78,7 +78,6 @@ object ScreenReader {
             for (i in 0 until node.childCount) {
                 node.getChild(i)?.let { child ->
                     traverseNode(child, elements)
-                    child.recycle()
                 }
             }
         } catch (e: Exception) {

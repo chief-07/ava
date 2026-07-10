@@ -123,7 +123,7 @@ class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -156,9 +156,10 @@ class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             windowManager?.addView(bannerContainer, params)
             startForeground(NOTIF_ID, buildNotification())
             lifecycleRegistry.currentState = Lifecycle.State.RESUMED
-            Log.i(TAG, "Banner shown")
+            com.ava.util.AppLogger.i(TAG, "Banner shown ✅")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to show banner: ${e.message}")
+            com.ava.util.AppLogger.e(TAG, "Failed to show banner: ${e.message}")
+            Log.e(TAG, "Failed to show banner", e)
         }
     }
 

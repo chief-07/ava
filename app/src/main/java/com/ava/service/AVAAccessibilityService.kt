@@ -2,6 +2,7 @@ package com.ava.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.ava.agent.AgentLoop
 import com.ava.agent.GeminiClient
@@ -65,14 +66,15 @@ class AVAAccessibilityService : AccessibilityService() {
     // ─── Accessibility events ──────────────────────────────────────────────────
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        // We subscribe to all events (typeAllMask in config) so we can detect
-        // screen changes during the agent loop. The AgentLoop uses this signal
-        // to know when to re-read the screen after an action.
+        // Ignore events from AVA itself to avoid log noise
+        if (event.packageName?.toString() == packageName) return
+
+        // Log to logcat only (not AppLogger) to avoid flooding the in-app console
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ->
-                AppLogger.d(TAG, "Window changed: ${event.packageName} / ${event.className}")
+                Log.v(TAG, "Window changed: ${event.packageName} / ${event.className}")
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-                AppLogger.d(TAG, "Content changed in: ${event.packageName}")
+                Log.v(TAG, "Content changed in: ${event.packageName}")
         }
     }
 

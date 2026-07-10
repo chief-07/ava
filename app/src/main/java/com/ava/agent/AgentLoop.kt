@@ -39,7 +39,14 @@ class AgentLoop(
     fun start(task: String) {
         loopJob?.cancel()
         _state.value = AgentState(task = task, isRunning = true)
-        loopJob = scope.launch { runLoop(task) }
+        loopJob = scope.launch {
+            try {
+                runLoop(task)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Agent loop crashed: ${e.message}", e)
+                _state.update { it.copy(isRunning = false) }
+            }
+        }
         AppLogger.i(TAG, "Started task: \"$task\"")
     }
 

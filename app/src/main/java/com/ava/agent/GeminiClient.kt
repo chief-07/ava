@@ -11,6 +11,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import com.ava.util.AppLogger
 
 private const val TAG = "AVA:GeminiClient"
 
@@ -58,8 +59,8 @@ class GeminiClient(private val apiKey: String) {
         return try {
             val responseText = callGemini(prompt)
             parseAction(responseText)
-        } catch (e: Exception) {
-            Log.e(TAG, "Gemini call failed: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.e(TAG, "Gemini call failed: ${e.message}", e)
             AgentAction(
                 action = ActionType.ASK_USER.name,
                 message = "I ran into an error: ${e.message}. Should I try again?"
@@ -167,8 +168,8 @@ class GeminiClient(private val apiKey: String) {
                 ?.jsonArray?.get(0)
                 ?.jsonObject?.get("text")
                 ?.jsonPrimitive?.content ?: ""
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to extract content from response: ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.e(TAG, "Failed to extract content from response: ${e.message}", e)
             ""
         }
     }
@@ -186,8 +187,8 @@ class GeminiClient(private val apiKey: String) {
                 .trim()
 
             json.decodeFromString<AgentAction>(clean)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse action JSON: $responseText — ${e.message}")
+        } catch (e: Throwable) {
+            AppLogger.e(TAG, "Failed to parse action JSON: $responseText — ${e.message}", e)
             AgentAction(
                 action = ActionType.ASK_USER.name,
                 message = "I got confused reading the response. Should I try again?"

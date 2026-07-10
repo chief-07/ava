@@ -42,7 +42,7 @@ class AgentLoop(
         loopJob = scope.launch {
             try {
                 runLoop(task)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 AppLogger.e(TAG, "Agent loop crashed: ${e.message}", e)
                 _state.update { it.copy(isRunning = false) }
             }

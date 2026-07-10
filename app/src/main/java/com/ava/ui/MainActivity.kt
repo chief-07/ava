@@ -283,10 +283,28 @@ fun AVASetupScreen(
             Spacer(Modifier.height(16.dp))
 
             // ── Logs Console ───────────────────────────────────────────────────
-            Text("Logs Console", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
+            val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
             val logs by AppLogger.logs.collectAsState()
             val reversedLogs = remember(logs) { logs.reversed() }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Logs Console", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                TextButton(
+                    onClick = {
+                        val allLogs = logs.joinToString("\n")
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(allLogs))
+                        AppLogger.i("MainActivity", "Logs copied to clipboard!")
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = AVABlue)
+                ) {
+                    Text("Copy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

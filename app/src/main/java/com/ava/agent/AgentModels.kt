@@ -16,7 +16,8 @@ enum class ActionType {
     NOTIFICATIONS,  // pull down the notification shade
     WAIT,           // wait for a screen change (e.g. page loading)
     ASK_USER,       // agent needs clarification or hits a wall
-    DONE            // task complete
+    DONE,           // task complete
+    OPEN_APP        // instantly launch an app by name
 }
 
 /** A single decision returned by the LLM. */

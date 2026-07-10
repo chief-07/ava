@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.*
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
@@ -36,7 +37,7 @@ private const val NOTIF_ID = 1001
  *
  * The service runs as a Foreground Service so Android doesn't kill it.
  */
-class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
+class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
 
     companion object {
         var instance: AVAOverlayService? = null
@@ -51,10 +52,12 @@ class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    private val store = ViewModelStore()
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
+    override val viewModelStore: ViewModelStore get() = store
 
     // ─── State ────────────────────────────────────────────────────────────────
 
@@ -138,6 +141,7 @@ class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             val composeView = ComposeView(this).apply {
                 setViewTreeLifecycleOwner(this@AVAOverlayService)
                 setViewTreeSavedStateRegistryOwner(this@AVAOverlayService)
+                setViewTreeViewModelStoreOwner(this@AVAOverlayService)
                 setContent {
                     AVABanner(
                         task = taskText,
@@ -154,7 +158,11 @@ class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
         try {
             windowManager?.addView(bannerContainer, params)
-            startForeground(NOTIF_ID, buildNotification())
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                startForeground(NOTIF_ID, buildNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NOTIF_ID, buildNotification())
+            }
             lifecycleRegistry.currentState = Lifecycle.State.RESUMED
             com.ava.util.AppLogger.i(TAG, "Banner shown ✅")
         } catch (e: Exception) {

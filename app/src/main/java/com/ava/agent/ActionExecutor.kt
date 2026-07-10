@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.graphics.Rect
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
@@ -38,6 +39,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             ActionType.ASK_USER -> "asking: ${action.message}"
             ActionType.DONE -> "done: ${action.message}"
             ActionType.SWIPE -> swipe(action.text)
+            ActionType.OPEN_APP -> openApp(action.text)
         }
     }
 
@@ -166,5 +168,33 @@ class ActionExecutor(private val service: AccessibilityService) {
             if (result != null) return result
         }
         return null
+    }
+
+    private fun openApp(appName: String): String {
+        val pm = service.packageManager
+        val packages = pm.getInstalledPackages(0)
+        var targetPackage: String? = null
+        for (pkg in packages) {
+            val appInfo = pkg.applicationInfo ?: continue
+            val label = appInfo.loadLabel(pm).toString()
+            if (label.equals(appName, ignoreCase = true) || label.contains(appName, ignoreCase = true)) {
+                targetPackage = pkg.packageName
+                break
+            }
+        }
+
+        if (targetPackage == null) {
+            Log.w(TAG, "App not found by name: $appName")
+            return "app \"$appName\" not found"
+        }
+
+        val launchIntent = pm.getLaunchIntentForPackage(targetPackage)
+        return if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            service.startActivity(launchIntent)
+            "opened app \"$appName\""
+        } else {
+            "could not launch app \"$appName\""
+        }
     }
 }

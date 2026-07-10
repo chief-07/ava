@@ -97,6 +97,7 @@ class GeminiClient(private val apiKey: String) {
             WAIT         - wait for the screen to change (e.g. loading). No extra params.
             ASK_USER     - you are stuck or need info. Requires: message (your question)
             DONE         - task is complete. Requires: message (brief summary of what was done)
+            OPEN_APP     - instantly launch an app by its name. Requires: text (the name of the app, e.g. "YouTube", "Calculator")
             
             RESPONSE FORMAT (strict JSON):
             {

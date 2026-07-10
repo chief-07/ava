@@ -11,9 +11,11 @@ import android.widget.FrameLayout
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.*
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ava.agent.AgentState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow

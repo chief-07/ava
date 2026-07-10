@@ -33,7 +33,9 @@ class GeminiClient(private val apiKey: String) {
         }
         install(Logging) {
             logger = object : Logger {
-                override fun log(message: String) = Log.v(TAG, message)
+                override fun log(message: String) {
+                    Log.v(TAG, message)
+                }
             }
             level = LogLevel.NONE // set to BODY for debugging
         }

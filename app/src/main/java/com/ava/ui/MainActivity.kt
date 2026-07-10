@@ -31,6 +31,8 @@ import com.ava.util.AppLogger
 import com.ava.voice.SpeechInput
 import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.flow.first
+
 private val AVABlue = Color(0xFF1A73E8)
 private val AVADark = Color(0xFF1C1C2E)
 private val AVAText = Color(0xFFFFFFFF)
@@ -141,9 +143,21 @@ class MainActivity : ComponentActivity() {
                 } else {
                     val started = service.startTask(task)
                     if (started) {
-                        AppLogger.i(TAG, "Task started successfully. Minimizing app...")
-                        // Move to background so AVA can work across apps
-                        moveTaskToBack(true)
+                        AppLogger.i(TAG, "Task started. Waiting for first step from Gemini...")
+                        // Observe the agent state. Minimize ONLY when the first action step is received.
+                        service.getAgentState()?.let { stateFlow ->
+                            lifecycleScope.launch {
+                                val firstState = stateFlow.first { state ->
+                                    state.steps.isNotEmpty() || state.isDone || state.needsUser || !state.isRunning
+                                }
+                                if (firstState.steps.isNotEmpty() && firstState.isRunning) {
+                                    AppLogger.i(TAG, "First step received: \"${firstState.steps.last()}\". Minimizing app...")
+                                    moveTaskToBack(true)
+                                } else {
+                                    AppLogger.i(TAG, "Task finished or needs input immediately. Keeping app open.")
+                                }
+                            }
+                        }
                     } else {
                         AppLogger.e(TAG, "Failed to start task. Check API key.")
                     }

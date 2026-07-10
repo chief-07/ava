@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -24,6 +26,7 @@ object AppLogger {
 
     private var logFile: File? = null
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private var defaultExceptionHandler: Thread.UncaughtExceptionHandler? = null
 
     /** Call once from MainActivity.onCreate to enable file persistence. */
     fun init(context: Context) {
@@ -34,6 +37,26 @@ object AppLogger {
             if (previousLogs.isNotEmpty()) {
                 _logs.value = listOf("── previous session ──") + previousLogs
             }
+        }
+        setupCrashHandler()
+    }
+
+    private fun setupCrashHandler() {
+        if (defaultExceptionHandler != null) return
+        defaultExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            // Format stacktrace
+            val sw = StringWriter()
+            val pw = PrintWriter(sw)
+            throwable.printStackTrace(pw)
+            val stackTraceString = sw.toString()
+
+            // Write crash to log file immediately
+            e("Crash", "Fatal exception on thread \"${thread.name}\": ${throwable.localizedMessage}")
+            addLog("=== CRASH DETAILS ===\n$stackTraceString=====================")
+
+            // Let default handler execute (triggers Android crash dialog)
+            defaultExceptionHandler?.uncaughtException(thread, throwable)
         }
     }
 
@@ -60,7 +83,7 @@ object AppLogger {
 
     private fun addLog(line: String) {
         val timestamped = "${timeFormat.format(Date())} $line"
-        _logs.update { (it + timestamped).takeLast(100) }
+        _logs.update { (it + timestamped).takeLast(120) }
         // Persist to file
         try {
             logFile?.appendText(timestamped + "\n")

@@ -5,6 +5,7 @@ import io.ktor.client.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -32,13 +33,18 @@ class GeminiClient(private val apiKey: String) {
         install(ContentNegotiation) {
             json(json)
         }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 20000
+            connectTimeoutMillis = 10000
+            socketTimeoutMillis = 15000
+        }
         install(Logging) {
             logger = object : Logger {
                 override fun log(message: String) {
-                    Log.v(TAG, message)
+                    AppLogger.d("Ktor", message)
                 }
             }
-            level = LogLevel.NONE // set to BODY for debugging
+            level = LogLevel.ALL
         }
     }
 

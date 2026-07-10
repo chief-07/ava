@@ -61,6 +61,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     // ─── Banner drawing state ───────────────────────────────────────────────
     private var windowManager: WindowManager? = null
     private var bannerContainer: FrameLayout? = null
+    private var windowParams: WindowManager.LayoutParams? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private var statusText by mutableStateOf("Ready")
@@ -155,6 +156,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             x = 0
             y = 0
         }
+        windowParams = params
 
         bannerContainer = FrameLayout(this).also { container ->
             container.setViewTreeLifecycleOwner(this@AVAAccessibilityService)
@@ -202,6 +204,26 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     private var stateObserverJob: Job? = null
 
+    private fun updateBannerFocus(focusable: Boolean) {
+        val container = bannerContainer ?: return
+        val params = windowParams ?: return
+        val currentFlags = params.flags
+        val newFlags = if (focusable) {
+            currentFlags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        } else {
+            currentFlags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        if (newFlags != currentFlags) {
+            params.flags = newFlags
+            try {
+                windowManager?.updateViewLayout(container, params)
+                Log.d(TAG, "Banner window focusable updated: $focusable")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update banner layout flags: ${e.message}")
+            }
+        }
+    }
+
     private fun observeAgentState(stateFlow: StateFlow<AgentState>) {
         stateObserverJob?.cancel()
         stateObserverJob = serviceScope.launch {
@@ -216,6 +238,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                     }
                     showUserPrompt = state.needsUser
                     userPromptText = state.userMessage
+                    
+                    updateBannerFocus(state.needsUser)
                 }
             }
         }
@@ -261,6 +285,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     fun provideUserInput(input: String) {
         agentLoop?.provideUserInput(input)
+        updateBannerFocus(false)
     }
 
     fun isAgentRunning(): Boolean = agentLoop?.state?.value?.isRunning == true

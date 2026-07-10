@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">AVA</string>
+    <string name="accessibility_service_description">AVA needs accessibility access to read your screen and perform actions on your behalf when you give it a task.</string>
+</resources>

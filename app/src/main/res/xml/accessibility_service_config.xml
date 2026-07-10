@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Accessibility Service Configuration for AVA.
+  - typeAllMask: receive events for all UI changes
+  - flagReportViewIds: include view resource IDs (useful for element targeting)
+  - flagIncludeNotImportantViews: see all nodes, not just "important" ones
+  - canRetrieveWindowContent: read the full UI tree
+  - canPerformGestures: dispatch taps, scrolls, swipes
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagReportViewIds|flagRequestFilterKeyEvents"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100"
+    android:settingsActivity=".ui.MainActivity" />

@@ -307,16 +307,28 @@ fun AVASetupScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Logs Console", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                TextButton(
-                    onClick = {
-                        val allLogs = logs.joinToString("\n")
-                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(allLogs))
-                        AppLogger.i("MainActivity", "Logs copied to clipboard!")
-                    },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    colors = ButtonDefaults.textButtonColors(contentColor = AVABlue)
-                ) {
-                    Text("Copy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row {
+                    TextButton(
+                        onClick = {
+                            AppLogger.clear()
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF5350))
+                    ) {
+                        Text("Clear", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(
+                        onClick = {
+                            val allLogs = logs.joinToString("\n")
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(allLogs))
+                            AppLogger.i("MainActivity", "Logs copied to clipboard!")
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = AVABlue)
+                    ) {
+                        Text("Copy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             Box(

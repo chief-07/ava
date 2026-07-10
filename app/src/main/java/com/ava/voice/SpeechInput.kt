@@ -6,7 +6,7 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.util.Log
+import com.ava.util.AppLogger
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -15,9 +15,6 @@ private const val TAG = "AVA:SpeechInput"
 /**
  * SpeechInput wraps Android's built-in SpeechRecognizer as a
  * suspending function — call listenOnce() and await the result.
- *
- * Uses the device's built-in STT engine (Google or OEM).
- * No API key required — completely free.
  */
 class SpeechInput(private val context: Context) {
 
@@ -42,21 +39,38 @@ class SpeechInput(private val context: Context) {
                 val matches = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull()
-                Log.d(TAG, "Recognized: $text")
+                AppLogger.d(TAG, "Speech recognized: \"$text\"")
                 if (continuation.isActive) continuation.resume(text)
             }
 
             override fun onError(error: Int) {
-                Log.w(TAG, "STT error: $error")
+                // Map common error codes to readable messages
+                val errorMsg = when (error) {
+                    SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                    SpeechRecognizer.ERROR_CLIENT -> "Client-side error"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission denied (Microphone)"
+                    SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer is busy"
+                    SpeechRecognizer.ERROR_SERVER -> "Server-side error"
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input detected"
+                    else -> "Unknown speech recognizer error ($error)"
+                }
+                AppLogger.w(TAG, "STT error: $errorMsg")
                 if (continuation.isActive) continuation.resume(null)
             }
 
-            // Required overrides — we don't need these for Phase 1
-            override fun onReadyForSpeech(params: Bundle?) {}
+            // Required overrides
+            override fun onReadyForSpeech(params: Bundle?) {
+                AppLogger.d(TAG, "Microphone active. Speak now...")
+            }
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
+            override fun onEndOfSpeech() {
+                AppLogger.d(TAG, "Processing speech...")
+            }
             override fun onPartialResults(partialResults: Bundle?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })

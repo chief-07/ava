@@ -1,8 +1,8 @@
 package com.ava.agent
 
 import android.accessibilityservice.AccessibilityService
-import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
+import com.ava.util.AppLogger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -40,13 +40,13 @@ class AgentLoop(
         loopJob?.cancel()
         _state.value = AgentState(task = task, isRunning = true)
         loopJob = scope.launch { runLoop(task) }
-        Log.i(TAG, "Started task: $task")
+        AppLogger.i(TAG, "Started task: \"$task\"")
     }
 
     fun stop() {
         loopJob?.cancel()
         _state.update { it.copy(isRunning = false) }
-        Log.i(TAG, "Task stopped by user")
+        AppLogger.i(TAG, "Task stopped by user")
     }
 
     fun provideUserInput(input: String) {
@@ -54,6 +54,7 @@ class AgentLoop(
         if (_state.value.needsUser) {
             val currentTask = _state.value.task
             val enrichedTask = "$currentTask\nUser clarification: $input"
+            AppLogger.i(TAG, "Resuming task with user input: \"$input\"")
             start(enrichedTask)
         }
     }
@@ -79,7 +80,7 @@ class AgentLoop(
             if (screenHash == lastScreenHash) {
                 sameScreenCount++
                 if (sameScreenCount >= STUCK_THRESHOLD) {
-                    Log.w(TAG, "Stuck detected after $sameScreenCount identical screens")
+                    AppLogger.w(TAG, "Stuck detected after $sameScreenCount identical screens")
                     emit(
                         steps,
                         needsUser = true,
@@ -94,15 +95,15 @@ class AgentLoop(
 
             // 2. THINK — ask Gemini
             emit(steps, thinking = true)
-            Log.d(TAG, "Step $stepCount — asking Gemini")
+            AppLogger.d(TAG, "Step $stepCount: Sending screen context to Gemini...")
             val action = gemini.decideNextAction(task, screen, steps)
-            Log.d(TAG, "Action: ${action.action} — ${action.reasoning}")
+            AppLogger.d(TAG, "Gemini selected: ${action.action} (Reasoning: ${action.reasoning})")
 
             // 3. ACT — execute
             val actionType = try {
                 ActionType.valueOf(action.action.uppercase())
             } catch (e: IllegalArgumentException) {
-                Log.e(TAG, "Unknown action type: ${action.action}")
+                AppLogger.e(TAG, "Unknown action type returned by LLM: ${action.action}")
                 ActionType.ASK_USER
             }
 
@@ -111,19 +112,20 @@ class AgentLoop(
                     val summary = action.message.ifBlank { "Task complete." }
                     steps.add("✅ Done: $summary")
                     emit(steps, isDone = true)
-                    Log.i(TAG, "Task complete: $summary")
+                    AppLogger.i(TAG, "Task completed successfully: $summary")
                     return
                 }
                 ActionType.ASK_USER -> {
                     steps.add("❓ ${action.message}")
                     emit(steps, needsUser = true, userMessage = action.message)
-                    Log.i(TAG, "Needs user: ${action.message}")
+                    AppLogger.i(TAG, "Agent needs user response: ${action.message}")
                     return
                 }
                 else -> {
                     val stepDesc = executor.execute(action, root)
                     steps.add("→ $stepDesc")
                     emit(steps)
+                    AppLogger.d(TAG, "Executed: $stepDesc")
                     // Small delay to let the screen settle after action
                     delay(800)
                 }
@@ -134,6 +136,7 @@ class AgentLoop(
         if (stepCount >= MAX_STEPS) {
             steps.add("⚠️ Reached step limit ($MAX_STEPS steps)")
             emit(steps, needsUser = true, userMessage = "I've taken $MAX_STEPS steps but haven't finished. Should I keep going?")
+            AppLogger.w(TAG, "Task reached step safety cap ($MAX_STEPS steps)")
         }
     }
 

@@ -2,11 +2,11 @@ package com.ava.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
-import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.ava.agent.AgentLoop
 import com.ava.agent.GeminiClient
 import com.ava.overlay.AVAOverlayService
+import com.ava.util.AppLogger
 
 private const val TAG = "AVA:AccessibilityService"
 
@@ -39,7 +39,7 @@ class AVAAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.i(TAG, "AVA Accessibility Service connected ✅")
+        AppLogger.i(TAG, "AVA Accessibility Service connected ✅")
 
         // Load API key from secure storage (set via MainActivity)
         val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
@@ -48,9 +48,9 @@ class AVAAccessibilityService : AccessibilityService() {
         if (apiKey.isNotBlank()) {
             geminiClient = GeminiClient(apiKey)
             agentLoop = AgentLoop(this, geminiClient!!)
-            Log.i(TAG, "Agent loop initialized with Gemini client")
+            AppLogger.i(TAG, "Agent loop initialized with Gemini client")
         } else {
-            Log.w(TAG, "No API key configured — agent loop not started")
+            AppLogger.w(TAG, "No API key configured — agent loop not started yet")
         }
     }
 
@@ -59,7 +59,7 @@ class AVAAccessibilityService : AccessibilityService() {
         instance = null
         agentLoop?.cancel()
         geminiClient?.close()
-        Log.i(TAG, "AVA Accessibility Service destroyed")
+        AppLogger.i(TAG, "AVA Accessibility Service destroyed")
     }
 
     // ─── Accessibility events ──────────────────────────────────────────────────
@@ -68,27 +68,36 @@ class AVAAccessibilityService : AccessibilityService() {
         // We subscribe to all events (typeAllMask in config) so we can detect
         // screen changes during the agent loop. The AgentLoop uses this signal
         // to know when to re-read the screen after an action.
-        //
-        // For now we just log; later we'll use this for reactive waiting.
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ->
-                Log.v(TAG, "Window changed: ${event.packageName} / ${event.className}")
+                AppLogger.d(TAG, "Window changed: ${event.packageName} / ${event.className}")
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-                Log.v(TAG, "Content changed in: ${event.packageName}")
+                AppLogger.d(TAG, "Content changed in: ${event.packageName}")
         }
     }
 
     override fun onInterrupt() {
-        Log.w(TAG, "Accessibility service interrupted")
+        AppLogger.w(TAG, "Accessibility service interrupted")
         agentLoop?.stop()
     }
 
     // ─── Public API (called by AVAOverlayService) ──────────────────────────────
 
-    fun startTask(task: String) {
+    fun startTask(task: String): Boolean {
+        // Dynamic initialization to resolve setup-order bug
+        if (agentLoop == null) {
+            val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
+            val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+            if (apiKey.isNotBlank()) {
+                geminiClient = GeminiClient(apiKey)
+                agentLoop = AgentLoop(this, geminiClient!!)
+                AppLogger.i(TAG, "Agent loop dynamically initialized on startTask")
+            }
+        }
+
         val loop = agentLoop ?: run {
-            Log.e(TAG, "Cannot start task — agent loop not initialized")
-            return
+            AppLogger.e(TAG, "Cannot start task — agent loop not initialized (missing API key?)")
+            return false
         }
 
         // Start the overlay service so the banner appears
@@ -103,6 +112,7 @@ class AVAAccessibilityService : AccessibilityService() {
 
         // Connect overlay to agent state updates
         AVAOverlayService.instance?.observeAgentState(loop.state)
+        return true
     }
 
     fun stopTask() {

@@ -97,7 +97,7 @@ class GeminiClient(private val apiKey: String) {
             TAP          - tap element by index. Requires: elementIndex
             SCROLL_DOWN  - scroll down the main scrollable area. No extra params.
             SCROLL_UP    - scroll up. No extra params.
-            TYPE         - type text into focused element. Requires: text
+            TYPE         - type text into focused element. Requires: text. Optionally takes: elementIndex (to target a specific text box)
             BACK         - press device back button. No extra params.
             HOME         - press home button. No extra params.
             NOTIFICATIONS - open notification shade. No extra params.

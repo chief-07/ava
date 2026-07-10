@@ -31,7 +31,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             ActionType.TAP -> tap(action.elementIndex, root)
             ActionType.SCROLL_DOWN -> scroll(forward = true, root)
             ActionType.SCROLL_UP -> scroll(forward = false, root)
-            ActionType.TYPE -> type(action.text, root)
+            ActionType.TYPE -> type(action.elementIndex, action.text, root)
             ActionType.BACK -> globalAction(AccessibilityService.GLOBAL_ACTION_BACK, "pressed Back")
             ActionType.HOME -> globalAction(AccessibilityService.GLOBAL_ACTION_HOME, "pressed Home")
             ActionType.NOTIFICATIONS -> globalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "opened notifications")
@@ -119,19 +119,33 @@ class ActionExecutor(private val service: AccessibilityService) {
         return "swiped $direction"
     }
 
-    private fun type(text: String, root: AccessibilityNodeInfo?): String {
-        // Find the focused editable field
-        val editable = findEditable(root)
+    private fun type(elementIndex: Int, text: String, root: AccessibilityNodeInfo?): String {
+        val editable = if (elementIndex >= 0) {
+            ScreenReader.findNodeByIndex(root, elementIndex)
+        } else {
+            findEditable(root)
+        }
+
         return if (editable != null) {
             val args = Bundle().apply {
                 putString(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
             }
             editable.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-            Log.d(TAG, "Typed: $text")
-            "typed \"${text.take(30)}${if (text.length > 30) "..." else ""}\""
+            Log.d(TAG, "Typed \"$text\" into element $elementIndex")
+            val label = editable.text?.toString() ?: editable.contentDescription?.toString() ?: "element $elementIndex"
+            "typed \"${text.take(20)}\" into \"$label\""
         } else {
-            Log.w(TAG, "No editable field found to type into")
-            "could not find a text field to type into"
+            val fallback = findEditable(root)
+            if (fallback != null) {
+                val args = Bundle().apply {
+                    putString(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                }
+                fallback.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                "typed \"${text.take(20)}\" into focused field"
+            } else {
+                Log.w(TAG, "No editable field found to type into")
+                "could not find a text field to type into"
+            }
         }
     }
 
@@ -178,8 +192,10 @@ class ActionExecutor(private val service: AccessibilityService) {
             val appInfo = pkg.applicationInfo ?: continue
             val label = appInfo.loadLabel(pm).toString()
             if (label.equals(appName, ignoreCase = true) || label.contains(appName, ignoreCase = true)) {
-                targetPackage = pkg.packageName
-                break
+                if (pm.getLaunchIntentForPackage(pkg.packageName) != null) {
+                    targetPackage = pkg.packageName
+                    break
+                }
             }
         }
 

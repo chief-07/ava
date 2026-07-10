@@ -25,6 +25,7 @@ import com.ava.agent.GeminiClient
 import com.ava.agent.AgentState
 import com.ava.overlay.AVABanner
 import com.ava.util.AppLogger
+import com.ava.voice.SpeechInput
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
 
@@ -47,6 +48,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     private var agentLoop: AgentLoop? = null
     private var geminiClient: GeminiClient? = null
+    private lateinit var speechInput: SpeechInput
 
     // ─── Lifecycle & SavedState boilerplate ──────────────────────────────────
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -79,6 +81,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     override fun onCreate() {
         super.onCreate()
+        speechInput = SpeechInput(this)
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
     }
@@ -174,7 +177,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                         showUserPrompt = showUserPrompt,
                         userPromptText = userPromptText,
                         onStop = { stopTask() },
-                        onUserInput = { input -> provideUserInput(input) }
+                        onUserInput = { input -> provideUserInput(input) },
+                        onMicClick = { triggerSpeechInput() }
                     )
                 }
             }
@@ -289,4 +293,32 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     }
 
     fun isAgentRunning(): Boolean = agentLoop?.state?.value?.isRunning == true
+
+    private fun triggerSpeechInput() {
+        serviceScope.launch {
+            // Unfocus the banner so speech recognizer has absolute focus
+            updateBannerFocus(false)
+            val oldStatus = statusText
+            statusText = "🎙️ Listening..."
+            val task = speechInput.listenOnce()
+            if (!task.isNullOrBlank()) {
+                AppLogger.i(TAG, "Speech recognized from banner overlay: \"$task\"")
+                startTask(task)
+            } else {
+                statusText = "Cancelled"
+                delay(1500)
+                val currentAgentState = agentLoop?.state?.value
+                if (currentAgentState != null) {
+                    statusText = when {
+                        currentAgentState.isDone -> "✅ Done"
+                        currentAgentState.needsUser -> "❓ ${currentAgentState.userMessage}"
+                        currentAgentState.steps.isNotEmpty() -> currentAgentState.steps.last()
+                        else -> oldStatus
+                    }
+                } else {
+                    statusText = "Ready"
+                }
+            }
+        }
+    }
 }

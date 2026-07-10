@@ -36,7 +36,8 @@ fun AVABanner(
     showUserPrompt: Boolean,
     userPromptText: String,
     onStop: () -> Unit,
-    onUserInput: (String) -> Unit
+    onUserInput: (String) -> Unit,
+    onMicClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -77,6 +78,17 @@ fun AVABanner(
             }
 
             Spacer(Modifier.width(8.dp))
+
+            // Mic button (🎤 MIC)
+            TextButton(
+                onClick = onMicClick,
+                colors = ButtonDefaults.textButtonColors(contentColor = AVABlue),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text("🎤 MIC", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.width(4.dp))
 
             // Stop button
             TextButton(

@@ -48,7 +48,7 @@ class GeminiClient(private val apiKey: String) {
         }
     }
 
-    private val model = "gemini-2.5-flash" // active free tier model
+    private val model = "gemini-3.1-flash-lite" // active free tier model
 
     // ─── Main method ─────────────────────────────────────────────────────────
 

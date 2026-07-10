@@ -285,6 +285,7 @@ fun AVASetupScreen(
             Text("Logs Console", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             val logs by AppLogger.logs.collectAsState()
+            val reversedLogs = remember(logs) { logs.reversed() }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -296,7 +297,7 @@ fun AVASetupScreen(
                     modifier = Modifier.fillMaxSize(),
                     reverseLayout = false
                 ) {
-                    items(logs) { logLine ->
+                    items(reversedLogs) { logLine ->
                         Text(
                             text = logLine,
                             color = when {

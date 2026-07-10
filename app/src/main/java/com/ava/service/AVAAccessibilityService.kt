@@ -110,9 +110,11 @@ class AVAAccessibilityService : AccessibilityService() {
         // Start the agent
         loop.start(task)
 
-        // Connect overlay to agent state updates
-        AVAOverlayService.instance?.observeAgentState(loop.state)
         return true
+    }
+
+    fun getAgentState(): kotlinx.coroutines.flow.StateFlow<com.ava.agent.AgentState>? {
+        return agentLoop?.state
     }
 
     fun stopTask() {

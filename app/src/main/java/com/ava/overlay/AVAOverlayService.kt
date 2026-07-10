@@ -88,6 +88,11 @@ class AVAOverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                 taskText = task
                 statusText = "Starting..."
                 showBanner()
+
+                // Connect to the accessibility service's agent state updates
+                com.ava.service.AVAAccessibilityService.instance?.getAgentState()?.let { stateFlow ->
+                    observeAgentState(stateFlow)
+                }
             }
             ACTION_STOP -> {
                 hideBanner()

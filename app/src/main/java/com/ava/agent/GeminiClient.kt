@@ -42,7 +42,7 @@ class GeminiClient(private val apiKey: String) {
         }
     }
 
-    private val model = "gemini-2.0-flash" // update to latest available free model
+    private val model = "gemini-1.5-flash" // active free tier model
 
     // ─── Main method ─────────────────────────────────────────────────────────
 
@@ -154,7 +154,12 @@ class GeminiClient(private val apiKey: String) {
         }
 
         val responseText = response.bodyAsText()
-        Log.d(TAG, "Raw response: $responseText")
+        if (response.status != io.ktor.http.HttpStatusCode.OK) {
+            AppLogger.e(TAG, "Gemini API returned error ${response.status}: $responseText")
+            throw Exception("API Error: ${response.status}")
+        }
+
+        AppLogger.d(TAG, "Gemini API response received successfully")
         return extractContent(responseText)
     }
 

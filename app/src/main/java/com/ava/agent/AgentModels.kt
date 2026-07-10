@@ -18,7 +18,10 @@ enum class ActionType {
     WAIT,           // wait for a screen change (e.g. page loading)
     ASK_USER,       // agent needs clarification or hits a wall
     DONE,           // task complete
-    OPEN_APP        // instantly launch an app by name
+    OPEN_APP,       // instantly launch an app by name
+    TAKE_SCREENSHOT, // take screenshot
+    SET_VOLUME,     // adjust music volume
+    SET_BRIGHTNESS  // adjust screen brightness
 }
 
 /** A single decision returned by the LLM. */

@@ -4,8 +4,12 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.graphics.Rect
+import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.delay
@@ -41,6 +45,9 @@ class ActionExecutor(private val service: AccessibilityService) {
             ActionType.DONE -> "done: ${action.message}"
             ActionType.SWIPE -> swipe(action.text)
             ActionType.OPEN_APP -> openApp(action.text)
+            ActionType.TAKE_SCREENSHOT -> takeScreenshot()
+            ActionType.SET_VOLUME -> setVolume(action.text)
+            ActionType.SET_BRIGHTNESS -> setBrightness(action.text)
         }
     }
 
@@ -247,6 +254,89 @@ class ActionExecutor(private val service: AccessibilityService) {
             "opened app \"$appName\""
         } else {
             "could not launch app \"$appName\""
+        }
+    }
+
+    private fun takeScreenshot(): String {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            val success = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
+            if (success) "took screenshot and saved to gallery"
+            else "failed to trigger system screenshot"
+        } else {
+            Log.w(TAG, "Screenshot global action is not supported on Android versions below 9")
+            "screenshots not supported on this device version"
+        }
+    }
+
+    private fun parsePercentage(text: String): Int? {
+        val cleaned = text.filter { it.isDigit() }
+        return cleaned.toIntOrNull()?.coerceIn(0, 100)
+    }
+
+    private fun setVolume(text: String): String {
+        val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            ?: return "failed to access volume service"
+
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (text.equals("up", ignoreCase = true)) {
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+            return "increased volume"
+        }
+        if (text.equals("down", ignoreCase = true)) {
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+            return "decreased volume"
+        }
+
+        val percentage = parsePercentage(text)
+        return if (percentage != null) {
+            val targetVolume = (maxVolume * percentage) / 100
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, AudioManager.FLAG_SHOW_UI)
+            "set volume to $percentage%"
+        } else {
+            "invalid volume command: \"$text\""
+        }
+    }
+
+    private fun setBrightness(text: String): String {
+        val contentResolver = service.contentResolver
+        if (!Settings.System.canWrite(service)) {
+            Log.w(TAG, "Modify system settings permission not granted for brightness control")
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                    data = Uri.parse("package:${service.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                service.startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch write settings intent: ${e.message}")
+            }
+            return "WRITE_SETTINGS permission required: opening settings to grant it"
+        }
+
+        val currentBrightness = try {
+            Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS)
+        } catch (_: Exception) {
+            128
+        }
+
+        if (text.equals("up", ignoreCase = true)) {
+            val target = (currentBrightness + 40).coerceIn(10, 255)
+            Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, target)
+            return "increased brightness"
+        }
+        if (text.equals("down", ignoreCase = true)) {
+            val target = (currentBrightness - 40).coerceIn(10, 255)
+            Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, target)
+            return "decreased brightness"
+        }
+
+        val percentage = parsePercentage(text)
+        return if (percentage != null) {
+            val targetBrightness = (255 * percentage) / 100
+            Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, targetBrightness)
+            "set brightness to $percentage%"
+        } else {
+            "invalid brightness command: \"$text\""
         }
     }
 }

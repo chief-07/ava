@@ -112,6 +112,9 @@ class GeminiClient(private val apiKey: String) {
             ASK_USER     - you are stuck or need info. Requires: message (your question)
             DONE         - task is complete. Requires: message (brief summary of what was done)
             OPEN_APP     - instantly launch an app by its name. Requires: text (the name of the app, e.g. "YouTube", "Calculator")
+            TAKE_SCREENSHOT - take a screenshot of the current screen and save it to the gallery. No extra params.
+            SET_VOLUME   - adjust media volume. Requires: text (a percentage "0" to "100", or "up"/"down")
+            SET_BRIGHTNESS - adjust screen brightness. Requires: text (a percentage "0" to "100", or "up"/"down")
             
             RESPONSE FORMAT (strict JSON):
             {

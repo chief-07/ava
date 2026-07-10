@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLogger.init(this)  // enable file-backed log persistence
         speechInput = SpeechInput(this)
 
         AppLogger.i(TAG, "MainActivity created")

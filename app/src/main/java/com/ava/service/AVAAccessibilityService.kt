@@ -157,6 +157,10 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
 
         bannerContainer = FrameLayout(this).also { container ->
+            container.setViewTreeLifecycleOwner(this@AVAAccessibilityService)
+            container.setViewTreeSavedStateRegistryOwner(this@AVAAccessibilityService)
+            container.setViewTreeViewModelStoreOwner(this@AVAAccessibilityService)
+
             val composeView = ComposeView(this).apply {
                 setViewTreeLifecycleOwner(this@AVAAccessibilityService)
                 setViewTreeSavedStateRegistryOwner(this@AVAAccessibilityService)

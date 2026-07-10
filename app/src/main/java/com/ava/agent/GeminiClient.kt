@@ -93,8 +93,15 @@ class GeminiClient(private val apiKey: String) {
             - Never perform irreversible actions (delete, send, purchase) without noting it in reasoning.
             - element indexes start at 0 and match the ELEMENTS list exactly.
             
+            COGNITIVE & NAVIGATION GUIDELINES:
+            - ANTI-REPETITION: Look at the "STEPS TAKEN SO FAR" history. If an action you tried previously resulted in no screen change, did not work, or was ineffective, DO NOT repeat the exact same action or tap the same element index. Try a different element, a different approach, or scroll.
+            - BACKTRACKING RECOVERY: If you tap a link or button and it opens a wrong page, advertisement, or dead-end, immediately execute the "BACK" action to return to the previous screen. Do not try to proceed on an incorrect page.
+            - BROWSER SEARCH INTUITION: Do not type into Chrome's top address/URL bar unless you need to navigate to a completely new website. If you are already on the correct website, search within the page itself: tap the website's search box, click a search icon (🔍), open the hamburger menu drawer (☰), or default to searching via google.com and clicking the result.
+            - SCREEN INTUITION & LLM KNOWLEDGE: Use your general knowledge as an LLM to interpret screen elements. For example, infer what unlabeled icons (☰, 🔍, 🛒, 👤) represent, read text context to identify forms or status changes, and use your reasoning to decide what element is most likely to contain the content you need.
+            
             AVAILABLE ACTIONS:
             TAP          - tap element by index. Requires: elementIndex
+            LONG_PRESS   - tap and hold element by index. Requires: elementIndex
             SCROLL_DOWN  - scroll down the main scrollable area. No extra params.
             SCROLL_UP    - scroll up. No extra params.
             TYPE         - type text into focused element. Requires: text. Optionally takes: elementIndex (to target a specific text box)

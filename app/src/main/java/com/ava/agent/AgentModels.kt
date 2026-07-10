@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 /** Every action AVA can perform on the device. */
 enum class ActionType {
     TAP,            // tap an element by index
+    LONG_PRESS,     // tap and hold an element by index
     SCROLL_UP,      // scroll the focused scrollable up
     SCROLL_DOWN,    // scroll the focused scrollable down
     SWIPE,          // directional swipe (left/right/up/down)

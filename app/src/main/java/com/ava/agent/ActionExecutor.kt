@@ -29,6 +29,7 @@ class ActionExecutor(private val service: AccessibilityService) {
     suspend fun execute(action: AgentAction, root: AccessibilityNodeInfo?): String {
         return when (ActionType.valueOf(action.action.uppercase())) {
             ActionType.TAP -> tap(action.elementIndex, root)
+            ActionType.LONG_PRESS -> longPress(action.elementIndex, root)
             ActionType.SCROLL_DOWN -> scroll(forward = true, root)
             ActionType.SCROLL_UP -> scroll(forward = false, root)
             ActionType.TYPE -> type(action.elementIndex, action.text, root)
@@ -77,6 +78,41 @@ class ActionExecutor(private val service: AccessibilityService) {
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         service.dispatchGesture(gesture, null, null)
         Log.d(TAG, "Dispatched tap at ($x, $y)")
+    }
+
+    private fun longPress(elementIndex: Int, root: AccessibilityNodeInfo?): String {
+        val node = ScreenReader.findNodeByIndex(root, elementIndex)
+        if (node != null && node.isClickable) {
+            val success = node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+            if (success) {
+                val label = node.text?.toString() ?: node.contentDescription?.toString() ?: "element $elementIndex"
+                Log.d(TAG, "Long-pressed: $label")
+                return "long-pressed \"$label\""
+            }
+        }
+        return longPressByCoordinates(elementIndex, root)
+    }
+
+    private fun longPressByCoordinates(elementIndex: Int, root: AccessibilityNodeInfo?): String {
+        val node = ScreenReader.findNodeByIndex(root, elementIndex) ?: run {
+            Log.w(TAG, "Element $elementIndex not found for long-press")
+            return "could not find element $elementIndex"
+        }
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+        val x = bounds.centerX().toFloat()
+        val y = bounds.centerY().toFloat()
+        dispatchLongPress(x, y)
+        val label = node.text?.toString() ?: node.contentDescription?.toString() ?: "element $elementIndex"
+        return "long-pressed \"$label\" at ($x, $y)"
+    }
+
+    private fun dispatchLongPress(x: Float, y: Float) {
+        val path = Path().apply { moveTo(x, y) }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 1000)
+        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        service.dispatchGesture(gesture, null, null)
+        Log.d(TAG, "Dispatched long press at ($x, $y)")
     }
 
     private fun scroll(forward: Boolean, root: AccessibilityNodeInfo?): String {

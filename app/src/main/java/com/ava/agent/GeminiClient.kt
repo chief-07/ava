@@ -22,7 +22,7 @@ private const val TAG = "AVA:GeminiClient"
  *
  * Uses Gemini's generateContent REST API via Ktor.
  */
-class GeminiClient(private val apiKey: String) {
+class GeminiClient(val apiKey: String) {
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -98,6 +98,7 @@ class GeminiClient(private val apiKey: String) {
             - BACKTRACKING RECOVERY: If you tap a link or button and it opens a wrong page, advertisement, or dead-end, immediately execute the "BACK" action to return to the previous screen. Do not try to proceed on an incorrect page.
             - BROWSER SEARCH INTUITION: Do not type into Chrome's top address/URL bar unless you need to navigate to a completely new website. If you are already on the correct website, search within the page itself: tap the website's search box, click a search icon (🔍), open the hamburger menu drawer (☰), or default to searching via google.com and clicking the result.
             - SCREEN INTUITION & LLM KNOWLEDGE: Use your general knowledge as an LLM to interpret screen elements. For example, infer what unlabeled icons (☰, 🔍, 🛒, 👤) represent, read text context to identify forms or status changes, and use your reasoning to decide what element is most likely to contain the content you need.
+            - SELECTION STATE VERIFICATION: When executing multi-step actions (such as long-pressing to select an item), ALWAYS verify in the current SCREEN/ELEMENTS list that the selection state has successfully registered (e.g. look for selection indicators, checkboxes, trash can icons, or header text like "1 selected") BEFORE tapping follow-up menu buttons like "More options". If the selection state is not yet visible, use the WAIT action to let the screen update.
             
             AVAILABLE ACTIONS:
             TAP          - tap element by index. Requires: elementIndex

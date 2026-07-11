@@ -252,14 +252,15 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     // ─── Public API ───────────────────────────────────────────────────────────
 
     fun startTask(task: String): Boolean {
-        // Dynamic initialization to resolve setup-order bug
-        if (agentLoop == null) {
-            val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
-            val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+        val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
+        val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+
+        // Dynamically initialize or refresh the agent loop if the API key has changed
+        if (geminiClient == null || geminiClient?.apiKey != apiKey) {
             if (apiKey.isNotBlank()) {
                 geminiClient = GeminiClient(apiKey)
                 agentLoop = AgentLoop(this, geminiClient!!)
-                AppLogger.i(TAG, "Agent loop dynamically initialized on startTask")
+                AppLogger.i(TAG, "Agent loop initialized/updated with new API key")
             }
         }
 

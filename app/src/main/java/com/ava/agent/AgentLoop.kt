@@ -78,6 +78,7 @@ class AgentLoop(
             stepCount++
 
             // 1. READ — get current screen
+            service.clearCache()
             val root = service.rootInActiveWindow
             val appPackage = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
             val screen = ScreenReader.buildContext(root, appPackage, "")

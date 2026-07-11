@@ -173,7 +173,7 @@ class GeminiClient(val apiKey: String) {
             if (enableSearch) {
                 putJsonArray("tools") {
                     addJsonObject {
-                        putJsonObject("googleSearch") {
+                        putJsonObject("googleSearchRetrieval") {
                             // Natively enables Google Search grounding on the Gemini API
                         }
                     }

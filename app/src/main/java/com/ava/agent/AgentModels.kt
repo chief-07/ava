@@ -77,5 +77,6 @@ data class AgentState(
     val isRunning: Boolean = true,
     val isDone: Boolean = false,
     val needsUser: Boolean = false,
-    val userMessage: String = ""
+    val userMessage: String = "",
+    val isError: Boolean = false
 )

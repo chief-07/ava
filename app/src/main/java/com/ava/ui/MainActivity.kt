@@ -2,26 +2,38 @@ package com.ava.ui
 
 import android.Manifest
 import android.content.Intent
+import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import android.graphics.BitmapFactory
+import java.io.File
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -298,6 +310,143 @@ fun AVASetupScreen(
                         uncheckedTrackColor = AVADark
                     )
                 )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Launcher Notification Toggle Card
+            var showNotification by remember { mutableStateOf(
+                context.getSharedPreferences("ava_config", 0).getBoolean("show_persistent_notification", false)
+            )}
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2A3E), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Show Launcher Notification", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(2.dp))
+                    Text("Keep a persistent notification to easily launch AVA from anywhere", color = AVASubtext, fontSize = 11.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = showNotification,
+                    onCheckedChange = { checked ->
+                        showNotification = checked
+                        context.getSharedPreferences("ava_config", 0).edit().apply {
+                            putBoolean("show_persistent_notification", checked)
+                            apply()
+                        }
+                        val intent = Intent(context, AVAAccessibilityService::class.java).apply {
+                            action = AVAAccessibilityService.ACTION_REFRESH_NOTIFICATION
+                        }
+                        try {
+                            context.startService(intent)
+                        } catch (e: Exception) {
+                            AppLogger.e("MainActivity", "Failed to refresh notification: ${e.message}")
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = AVAText,
+                        checkedTrackColor = AVABlue,
+                        uncheckedThumbColor = AVASubtext,
+                        uncheckedTrackColor = AVADark
+                    )
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Custom Avatar Card
+            var customAvatarPath by remember { mutableStateOf(
+                context.getSharedPreferences("ava_config", 0).getString("custom_avatar_path", null)
+            )}
+            val customAvatarBitmap = remember(customAvatarPath) {
+                if (customAvatarPath != null) {
+                    val file = File(customAvatarPath)
+                    if (file.exists()) {
+                        try {
+                            BitmapFactory.decodeFile(file.absolutePath)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    } else null
+                } else null
+            }
+            val pickMedia = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.PickVisualMedia()
+            ) { uri ->
+                if (uri != null) {
+                    try {
+                        val inputStream = context.contentResolver.openInputStream(uri)
+                        val destinationFile = File(context.filesDir, "custom_avatar.png")
+                        inputStream?.use { input ->
+                            destinationFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        context.getSharedPreferences("ava_config", 0).edit().apply {
+                            putString("custom_avatar_path", destinationFile.absolutePath)
+                            apply()
+                        }
+                        customAvatarPath = destinationFile.absolutePath
+                        AppLogger.i("MainActivity", "Custom avatar updated! Restart the service if needed.")
+                    } catch (e: Exception) {
+                        AppLogger.e("MainActivity", "Failed to save avatar image: ${e.message}")
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2A3E), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Custom Overlay Avatar", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(2.dp))
+                    Text("Select a photo from your gallery to replace the default smiley button", color = AVASubtext, fontSize = 11.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (customAvatarBitmap != null) {
+                        Image(
+                            bitmap = customAvatarBitmap.asImageBitmap(),
+                            contentDescription = "Custom Avatar Preview",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, AVABlue, CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color.White.copy(alpha = 0.1f), CircleShape)
+                                .border(1.dp, AVASubtext, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("☺", color = AVAText, fontSize = 18.sp)
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AVABlue),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Select", fontSize = 11.sp)
+                    }
+                }
             }
 
             Spacer(Modifier.height(16.dp))

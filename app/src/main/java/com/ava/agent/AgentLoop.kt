@@ -44,7 +44,7 @@ class AgentLoop(
                 runLoop(task)
             } catch (e: Throwable) {
                 AppLogger.e(TAG, "Agent loop crashed: ${e.message}", e)
-                _state.update { it.copy(isRunning = false) }
+                _state.update { it.copy(isRunning = false, isError = true) }
             }
         }
         AppLogger.i(TAG, "Started task: \"$task\"")
@@ -125,8 +125,9 @@ class AgentLoop(
                 }
                 ActionType.ASK_USER -> {
                     steps.add("❓ ${action.message}")
-                    emit(steps, needsUser = true, userMessage = action.message)
-                    AppLogger.i(TAG, "Agent needs user response: ${action.message}")
+                    val isErr = action.message.contains("error", ignoreCase = true)
+                    emit(steps, needsUser = !isErr, isError = isErr, userMessage = action.message)
+                    AppLogger.i(TAG, "Agent needs user response (isError=$isErr): ${action.message}")
                     return
                 }
                 else -> {
@@ -163,16 +164,18 @@ class AgentLoop(
         isDone: Boolean = false,
         needsUser: Boolean = false,
         userMessage: String = "",
+        isError: Boolean = false,
         thinking: Boolean = false
     ) {
         val currentTask = _state.value.task
         _state.value = AgentState(
             task = currentTask,
             steps = steps.toMutableList(),
-            isRunning = !isDone && !needsUser,
+            isRunning = !isDone && !needsUser && !isError,
             isDone = isDone,
             needsUser = needsUser,
-            userMessage = userMessage
+            userMessage = userMessage,
+            isError = isError
         )
     }
 

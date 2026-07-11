@@ -1,6 +1,10 @@
 package com.ava.service
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -8,6 +12,8 @@ import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import androidx.core.app.NotificationCompat
+import com.ava.ui.MainActivity
 import android.widget.FrameLayout
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,7 +78,17 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private var showUserPrompt by mutableStateOf(false)
     private var userPromptText by mutableStateOf("")
 
+    private var isRunningState by mutableStateOf(false)
+    private var isDoneState by mutableStateOf(false)
+    private var needsUserState by mutableStateOf(false)
+    private var isErrorState by mutableStateOf(false)
+
     companion object {
+        const val ACTION_SHOW_BANNER = "com.ava.action.SHOW_BANNER"
+        const val ACTION_REFRESH_NOTIFICATION = "com.ava.action.REFRESH_NOTIFICATION"
+        private const val CHANNEL_ID = "ava_persistent_channel"
+        private const val NOTIFICATION_ID = 888
+
         // Singleton reference so other components can reach the service
         var instance: AVAAccessibilityService? = null
             private set
@@ -104,6 +120,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         } else {
             AppLogger.w(TAG, "No API key configured — agent loop not started yet")
         }
+        updatePersistentNotification()
     }
 
     override fun onDestroy() {
@@ -146,19 +163,25 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         taskText = task
         statusText = "Starting..."
-
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = 24
-            y = 12
+            y = 0
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                fitInsetsTypes = 0
+            }
         }
         windowParams = params
 
@@ -173,6 +196,10 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                 setViewTreeViewModelStoreOwner(this@AVAAccessibilityService)
                 setContent {
                     AVAAvatarButton(
+                        isRunning = isRunningState,
+                        isDone = isDoneState,
+                        needsUser = needsUserState,
+                        isError = isErrorState,
                         onClick = { triggerSpeechInput() }
                     )
                 }
@@ -238,6 +265,11 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                     showUserPrompt = state.needsUser
                     userPromptText = state.userMessage
                     
+                    isRunningState = state.isRunning
+                    isDoneState = state.isDone
+                    needsUserState = state.needsUser
+                    isErrorState = state.isError
+                    
                     updateBannerFocus(state.needsUser)
                 }
             }
@@ -249,6 +281,10 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     fun showIdleBanner() {
         taskText = ""
         statusText = "Ready — tap 🎤 MIC to speak"
+        isRunningState = false
+        isDoneState = false
+        needsUserState = false
+        isErrorState = false
         showBanner("")
     }
 
@@ -270,6 +306,11 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             return false
         }
 
+        isRunningState = true
+        isDoneState = false
+        needsUserState = false
+        isErrorState = false
+
         showBanner(task)
         observeAgentState(loop.state)
 
@@ -283,15 +324,72 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         return agentLoop?.state
     }
 
-    fun stopTask() {
+    private fun stopTask() {
         agentLoop?.stop()
-        stateObserverJob?.cancel()
         hideBanner()
     }
 
-    fun provideUserInput(input: String) {
+    private fun provideUserInput(input: String) {
         agentLoop?.provideUserInput(input)
-        updateBannerFocus(false)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent != null) {
+            when (intent.action) {
+                ACTION_SHOW_BANNER -> {
+                    AppLogger.i(TAG, "Show banner action triggered from notification")
+                    showIdleBanner()
+                }
+                ACTION_REFRESH_NOTIFICATION -> {
+                    updatePersistentNotification()
+                }
+            }
+        }
+        return START_STICKY
+    }
+
+    private fun updatePersistentNotification() {
+        val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
+        val showNotification = prefs.getBoolean("show_persistent_notification", false)
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (!showNotification) {
+            notificationManager.cancel(NOTIFICATION_ID)
+            return
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "AVA Background Service",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Keeps AVA launcher active in your notification drawer"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val intent = Intent(this, AVAAccessibilityService::class.java).apply {
+            action = ACTION_SHOW_BANNER
+        }
+        val piFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = PendingIntent.getService(this, 0, intent, piFlags)
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("AVA is active")
+            .setContentText("Tap to open voice search button")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setOngoing(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        notificationManager.notify(NOTIFICATION_ID, notification)
+        Log.d(TAG, "Persistent notification posted successfully")
     }
 
     fun isAgentRunning(): Boolean = agentLoop?.state?.value?.isRunning == true

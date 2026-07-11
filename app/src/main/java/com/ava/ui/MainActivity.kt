@@ -451,59 +451,6 @@ fun AVASetupScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Speech Model Card
-            var modelStatus by remember { mutableStateOf(
-                if (context.getSharedPreferences("ava_config", 0).getString("vosk_model_path", null) != null) {
-                    "Voice model ready"
-                } else "Voice model not downloaded"
-            )}
-            var downloading by remember { mutableStateOf(false) }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF2A2A3E), RoundedCornerShape(8.dp))
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Offline Wake-Word Model", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(2.dp))
-                    Text(modelStatus, color = if (modelStatus.contains("ready")) AVABlue else AVASubtext, fontSize = 11.sp)
-                }
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        if (!downloading) {
-                            downloading = true
-                            lifecycleScope.launch {
-                                val path = com.ava.voice.ModelDownloader.downloadAndExtractModel(context) { status ->
-                                    modelStatus = status
-                                }
-                                downloading = false
-                                if (path != null) {
-                                    modelStatus = "Voice model ready"
-                                    val refreshIntent = Intent(context, AVAAccessibilityService::class.java).apply {
-                                        action = AVAAccessibilityService.ACTION_REFRESH_NOTIFICATION
-                                    }
-                                    try {
-                                        context.startService(refreshIntent)
-                                    } catch (e: Exception) {
-                                        AppLogger.e("MainActivity", "Failed to refresh service: ${e.message}")
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    enabled = !downloading,
-                    colors = ButtonDefaults.buttonColors(containerColor = AVABlue),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(if (downloading) "Downloading" else "Download", fontSize = 11.sp)
-                }
-            }
-
             Spacer(Modifier.height(16.dp))
 
             // ── Logs Console ───────────────────────────────────────────────────

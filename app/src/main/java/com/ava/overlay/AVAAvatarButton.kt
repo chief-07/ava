@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -39,6 +41,8 @@ import java.io.File
  *   - Light Blue (Pulsing): Completed successfully
  *   - Light Red (Pulsing): Error / Failed
  *   - Amber (Pulsing): Request User Input / Clarification
+ *
+ * Supports dragging anywhere on the screen.
  */
 @Composable
 fun AVAAvatarButton(
@@ -46,6 +50,8 @@ fun AVAAvatarButton(
     isDone: Boolean,
     needsUser: Boolean,
     isError: Boolean,
+    onDrag: (dx: Float, dy: Float) -> Unit,
+    onDragEnd: () -> Unit,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -125,6 +131,18 @@ fun AVAAvatarButton(
                 shape = CircleShape
             )
             .clip(CircleShape)
+            // 4. Pointer input for drag gesture detection
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.x, dragAmount.y)
+                    }
+                )
+            }
+            // 5. Standard click handler for tap triggers
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {

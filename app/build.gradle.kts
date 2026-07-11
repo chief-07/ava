@@ -65,7 +65,4 @@ dependencies {
 
     // JSON serialization
     implementation(libs.kotlinx.serialization.json)
-
-    // Vosk speech recognition SDK
-    implementation("org.alphacephei:vosk-android:0.3.38@aar")
 }

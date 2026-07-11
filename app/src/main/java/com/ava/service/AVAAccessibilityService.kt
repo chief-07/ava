@@ -33,6 +33,7 @@ import com.ava.overlay.AVABanner
 import com.ava.overlay.AVAAvatarButton
 import com.ava.util.AppLogger
 import com.ava.voice.SpeechInput
+import com.ava.voice.WakeWordListener
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.StateFlow
 
@@ -56,6 +57,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private var agentLoop: AgentLoop? = null
     private var geminiClient: GeminiClient? = null
     private lateinit var speechInput: SpeechInput
+    private var wakeWordListener: WakeWordListener? = null
 
     // ─── Lifecycle & SavedState boilerplate ──────────────────────────────────
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -174,8 +176,9 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 24
-            y = 0
+            val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
+            x = prefs.getInt("avatar_x", 24)
+            y = prefs.getInt("avatar_y", 0)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -200,6 +203,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                         isDone = isDoneState,
                         needsUser = needsUserState,
                         isError = isErrorState,
+                        onDrag = { dx, dy -> updateWindowPosition(dx, dy) },
+                        onDragEnd = { saveWindowPosition() },
                         onClick = { triggerSpeechInput() }
                     )
                 }
@@ -226,6 +231,30 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
         bannerContainer = null
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        wakeWordListener?.start()
+    }
+
+    private fun updateWindowPosition(dx: Float, dy: Float) {
+        val params = windowParams ?: return
+        val container = bannerContainer ?: return
+        params.x += dx.toInt()
+        params.y += dy.toInt()
+        try {
+            windowManager?.updateViewLayout(container, params)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update layout position: ${e.message}")
+        }
+    }
+
+    private fun saveWindowPosition() {
+        val params = windowParams ?: return
+        val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
+        prefs.edit().apply {
+            putInt("avatar_x", params.x)
+            putInt("avatar_y", params.y)
+            apply()
+        }
+        AppLogger.d(TAG, "Saved avatar position: x=${params.x}, y=${params.y}")
     }
 
     private var stateObserverJob: Job? = null
@@ -400,27 +429,20 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             wakeWordListener?.stop()
             wakeWordListener = null
         }
-        val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
-        val modelPath = prefs.getString("vosk_model_path", null)
-        if (modelPath != null) {
-            val file = java.io.File(modelPath)
-            if (file.exists() && file.isDirectory) {
-                wakeWordListener = WakeWordListener(this, modelPath) { command ->
-                    serviceScope.launch(Dispatchers.Main) {
-                        if (command != null) {
-                            AppLogger.i(TAG, "Wake word triggered with command: $command")
-                            startTask(command)
-                        } else {
-                            AppLogger.i(TAG, "Wake word triggered (idle wake)")
-                            showIdleBanner()
-                            triggerSpeechInput()
-                        }
-                    }
+        wakeWordListener = WakeWordListener(this) { command ->
+            serviceScope.launch(Dispatchers.Main) {
+                if (command != null) {
+                    AppLogger.i(TAG, "Wake word triggered with command: $command")
+                    startTask(command)
+                } else {
+                    AppLogger.i(TAG, "Wake word triggered (idle wake)")
+                    showIdleBanner()
+                    triggerSpeechInput()
                 }
-                wakeWordListener?.start()
-                AppLogger.i(TAG, "Wake word listener initialized successfully")
             }
         }
+        wakeWordListener?.start()
+        AppLogger.i(TAG, "Wake word listener initialized successfully")
     }
 
     private fun triggerSpeechInput() {

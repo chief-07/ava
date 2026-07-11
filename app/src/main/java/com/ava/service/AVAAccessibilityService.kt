@@ -24,6 +24,7 @@ import com.ava.agent.AgentLoop
 import com.ava.agent.GeminiClient
 import com.ava.agent.AgentState
 import com.ava.overlay.AVABanner
+import com.ava.overlay.AVAAvatarButton
 import com.ava.util.AppLogger
 import com.ava.voice.SpeechInput
 import kotlinx.coroutines.*
@@ -147,7 +148,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         statusText = "Starting..."
 
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -156,8 +157,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 0
+            x = 24
+            y = 12
         }
         windowParams = params
 
@@ -171,14 +172,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                 setViewTreeSavedStateRegistryOwner(this@AVAAccessibilityService)
                 setViewTreeViewModelStoreOwner(this@AVAAccessibilityService)
                 setContent {
-                    AVABanner(
-                        task = taskText,
-                        status = statusText,
-                        showUserPrompt = showUserPrompt,
-                        userPromptText = userPromptText,
-                        onStop = { stopTask() },
-                        onUserInput = { input -> provideUserInput(input) },
-                        onMicClick = { triggerSpeechInput() }
+                    AVAAvatarButton(
+                        onClick = { triggerSpeechInput() }
                     )
                 }
             }

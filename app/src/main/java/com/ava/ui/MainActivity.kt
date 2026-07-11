@@ -123,46 +123,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startListeningForTask() {
-        if (!audioGranted) {
-            AppLogger.w(TAG, "Cannot listen: Microphone permission not granted")
-            requestMicrophonePermission()
-            return
-        }
-
-        AppLogger.i(TAG, "Listening for task...")
-        lifecycleScope.launch {
-            val task = speechInput.listenOnce()
-            if (task.isNullOrBlank()) {
-                AppLogger.w(TAG, "Speech input was empty or cancelled")
-            } else {
-                AppLogger.i(TAG, "Speech recognized: \"$task\"")
-                
-                val service = AVAAccessibilityService.instance
-                if (service == null) {
-                    AppLogger.e(TAG, "Accessibility Service is not enabled. Go to Settings and turn it on.")
-                } else {
-                    val started = service.startTask(task)
-                    if (started) {
-                        AppLogger.i(TAG, "Task started. Waiting for first step from Gemini...")
-                        // Observe the agent state. Minimize ONLY when the first action step is received.
-                        service.getAgentState()?.let { stateFlow ->
-                            lifecycleScope.launch {
-                                val firstState = stateFlow.first { state ->
-                                    state.steps.isNotEmpty() || state.isDone || state.needsUser || !state.isRunning
-                                }
-                                if (firstState.steps.isNotEmpty() && firstState.isRunning) {
-                                    AppLogger.i(TAG, "First step received: \"${firstState.steps.last()}\". Minimizing app...")
-                                    moveTaskToBack(true)
-                                } else {
-                                    AppLogger.i(TAG, "Task finished or needs input immediately. Keeping app open.")
-                                }
-                            }
-                        }
-                    } else {
-                        AppLogger.e(TAG, "Failed to start task. Check API key.")
-                    }
-                }
-            }
+        val service = AVAAccessibilityService.instance
+        if (service == null) {
+            AppLogger.e(TAG, "Accessibility Service is not enabled. Go to Settings and turn it on.")
+        } else {
+            AppLogger.i(TAG, "Opening overlay banner... Minimizing app.")
+            service.showIdleBanner()
+            moveTaskToBack(true)
         }
     }
 

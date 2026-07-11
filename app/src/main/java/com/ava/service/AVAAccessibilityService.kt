@@ -251,6 +251,12 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
+    fun showIdleBanner() {
+        taskText = ""
+        statusText = "Ready — tap 🎤 MIC to speak"
+        showBanner("")
+    }
+
     fun startTask(task: String): Boolean {
         val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
         val apiKey = prefs.getString("gemini_api_key", "") ?: ""

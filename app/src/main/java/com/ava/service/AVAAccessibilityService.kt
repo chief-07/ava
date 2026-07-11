@@ -87,6 +87,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     companion object {
         const val ACTION_SHOW_BANNER = "com.ava.action.SHOW_BANNER"
+        const val ACTION_TOGGLE_OVERLAY = "com.ava.action.TOGGLE_OVERLAY"
         const val ACTION_REFRESH_NOTIFICATION = "com.ava.action.REFRESH_NOTIFICATION"
         private const val CHANNEL_ID = "ava_persistent_channel"
         private const val NOTIFICATION_ID = 888
@@ -353,6 +354,15 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         return agentLoop?.state
     }
 
+    fun cancelActiveTask() {
+        agentLoop?.stop()
+        isRunningState = false
+        isDoneState = false
+        needsUserState = false
+        isErrorState = false
+        statusText = "Cancelled"
+    }
+
     private fun stopTask() {
         agentLoop?.stop()
         hideBanner()
@@ -362,12 +372,28 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         agentLoop?.provideUserInput(input)
     }
 
+    private fun toggleOverlay() {
+        if (bannerContainer != null) {
+            hideBanner()
+            wakeWordListener?.stop()
+            AppLogger.i(TAG, "Overlay hidden via toggle")
+        } else {
+            showIdleBanner()
+            initWakeWordListener()
+            AppLogger.i(TAG, "Overlay shown via toggle")
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
             when (intent.action) {
                 ACTION_SHOW_BANNER -> {
                     AppLogger.i(TAG, "Show banner action triggered from notification")
                     showIdleBanner()
+                }
+                ACTION_TOGGLE_OVERLAY -> {
+                    AppLogger.i(TAG, "Toggle overlay action triggered from notification")
+                    toggleOverlay()
                 }
                 ACTION_REFRESH_NOTIFICATION -> {
                     updatePersistentNotification()
@@ -400,7 +426,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
 
         val intent = Intent(this, AVAAccessibilityService::class.java).apply {
-            action = ACTION_SHOW_BANNER
+            action = ACTION_TOGGLE_OVERLAY
         }
         val piFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -433,9 +459,11 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             serviceScope.launch(Dispatchers.Main) {
                 if (command != null) {
                     AppLogger.i(TAG, "Wake word triggered with command: $command")
+                    cancelActiveTask()
                     startTask(command)
                 } else {
                     AppLogger.i(TAG, "Wake word triggered (idle wake)")
+                    cancelActiveTask()
                     showIdleBanner()
                     triggerSpeechInput()
                 }
@@ -447,6 +475,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     private fun triggerSpeechInput() {
         serviceScope.launch {
+            wakeWordListener?.stop()
             // Unfocus the banner so speech recognizer has absolute focus
             updateBannerFocus(false)
             val oldStatus = statusText
@@ -470,6 +499,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                     statusText = "Ready"
                 }
             }
+            wakeWordListener?.start()
         }
     }
 }

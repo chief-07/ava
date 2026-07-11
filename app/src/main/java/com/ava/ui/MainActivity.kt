@@ -19,6 +19,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -197,7 +199,8 @@ fun AVASetupScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AVADark)
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(16.dp))
@@ -208,8 +211,7 @@ fun AVASetupScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // ── Scrollable list of setup items ────────────────────────────────────
-        Column(modifier = Modifier.weight(1f)) {
+        // ── Setup items list ──
             // Permission cards
             PermissionCard(
                 title = "1. Accessibility Service",
@@ -437,14 +439,33 @@ fun AVASetupScreen(
                         }
                     }
                     Spacer(Modifier.width(12.dp))
-                    Button(
-                        onClick = {
-                            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AVABlue),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("Select", fontSize = 11.sp)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Button(
+                            onClick = {
+                                pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AVABlue),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Select", fontSize = 11.sp)
+                        }
+                        if (customAvatarPath != null) {
+                            Spacer(Modifier.height(4.dp))
+                            TextButton(
+                                onClick = {
+                                    context.getSharedPreferences("ava_config", 0).edit().apply {
+                                        remove("custom_avatar_path")
+                                        apply()
+                                    }
+                                    customAvatarPath = null
+                                    AppLogger.i("MainActivity", "Custom avatar reset to default!")
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF5350))
+                            ) {
+                                Text("Reset", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
@@ -491,7 +512,7 @@ fun AVASetupScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f) // expand to fill remaining space
+                    .height(220.dp)
                     .background(Color.Black, RoundedCornerShape(8.dp))
                     .padding(8.dp)
             ) {
@@ -513,7 +534,6 @@ fun AVASetupScreen(
                     }
                 }
             }
-        }
 
         Spacer(Modifier.height(16.dp))
 

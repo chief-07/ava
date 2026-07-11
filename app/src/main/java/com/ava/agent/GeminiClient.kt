@@ -48,7 +48,16 @@ class GeminiClient(val apiKey: String) {
         }
     }
 
-    private val model = "gemini-3.1-flash-lite" // active free tier model
+    private val model = "gemini-3.1-flash-lite"
+
+    private fun requiresSearch(task: String): Boolean {
+        val lowercase = task.lowercase()
+        val keywords = listOf(
+            "weather", "score", "news", "president", "temperature", "who is", "what is",
+            "date", "time", "stock", "price", "match", "game", "current", "latest", "today", "yesterday"
+        )
+        return lowercase.contains("?") || keywords.any { lowercase.contains(it) }
+    }
 
     // ─── Main method ─────────────────────────────────────────────────────────
 
@@ -61,9 +70,10 @@ class GeminiClient(val apiKey: String) {
         stepHistory: List<String>
     ): AgentAction {
         val prompt = buildPrompt(task, screenContext, stepHistory)
+        val enableSearch = requiresSearch(task)
 
         return try {
-            val responseText = callGemini(prompt)
+            val responseText = callGemini(prompt, enableSearch)
             parseAction(responseText)
         } catch (e: Throwable) {
             AppLogger.e(TAG, "Gemini call failed: ${e.message}", e)
@@ -147,7 +157,7 @@ class GeminiClient(val apiKey: String) {
 
     // ─── HTTP call ────────────────────────────────────────────────────────────
 
-    private suspend fun callGemini(prompt: String): String {
+    private suspend fun callGemini(prompt: String, enableSearch: Boolean): String {
         val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
 
         val requestBody = buildJsonObject {
@@ -160,10 +170,12 @@ class GeminiClient(val apiKey: String) {
                     }
                 }
             }
-            putJsonArray("tools") {
-                addJsonObject {
-                    putJsonObject("googleSearch") {
-                        // Natively enables Google Search grounding on the Gemini API
+            if (enableSearch) {
+                putJsonArray("tools") {
+                    addJsonObject {
+                        putJsonObject("googleSearch") {
+                            // Natively enables Google Search grounding on the Gemini API
+                        }
                     }
                 }
             }

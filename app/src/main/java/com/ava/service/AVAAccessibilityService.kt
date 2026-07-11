@@ -342,6 +342,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                 }
                 ACTION_REFRESH_NOTIFICATION -> {
                     updatePersistentNotification()
+                    initWakeWordListener()
                 }
             }
         }
@@ -393,6 +394,34 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     }
 
     fun isAgentRunning(): Boolean = agentLoop?.state?.value?.isRunning == true
+
+    private fun initWakeWordListener() {
+        if (wakeWordListener != null) {
+            wakeWordListener?.stop()
+            wakeWordListener = null
+        }
+        val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
+        val modelPath = prefs.getString("vosk_model_path", null)
+        if (modelPath != null) {
+            val file = java.io.File(modelPath)
+            if (file.exists() && file.isDirectory) {
+                wakeWordListener = WakeWordListener(this, modelPath) { command ->
+                    serviceScope.launch(Dispatchers.Main) {
+                        if (command != null) {
+                            AppLogger.i(TAG, "Wake word triggered with command: $command")
+                            startTask(command)
+                        } else {
+                            AppLogger.i(TAG, "Wake word triggered (idle wake)")
+                            showIdleBanner()
+                            triggerSpeechInput()
+                        }
+                    }
+                }
+                wakeWordListener?.start()
+                AppLogger.i(TAG, "Wake word listener initialized successfully")
+            }
+        }
+    }
 
     private fun triggerSpeechInput() {
         serviceScope.launch {

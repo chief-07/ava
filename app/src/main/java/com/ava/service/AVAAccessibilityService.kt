@@ -186,6 +186,10 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 fitInsetsTypes = 0
             }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                flags = flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+                blurBehindRadius = 45
+            }
         }
         windowParams = params
 

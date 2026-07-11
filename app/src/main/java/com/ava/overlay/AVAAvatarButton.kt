@@ -34,15 +34,11 @@ import java.io.File
 
 /**
  * AVAAvatarButton — circular floating avatar button docked in the status bar.
- * Features a slightly dark frosted glassmorphic background (high-contrast with white face),
- * linear gradient border highlight, and a blurred pulsing outer glow:
- *   - White (Pulsing): Working / Executing task
- *   - Light Blue (Pulsing): Completed successfully
- *   - Light Red (Pulsing): Error / Failed
- *   - Amber (Pulsing): Request User Input / Clarification
- *
- * Implements padding containers to prevent square clipping of outer glow,
- * and preference listeners to instantly refresh the custom avatar.
+ * Designed with a premium "slightly dark frosted glass dome" aesthetic:
+ *   - Native Window-Level background blur (configured in layout params)
+ *   - Specular diagonal glare highlight creating a physical glass reflection effect
+ *   - Gradient border reflection outline
+ *   - State-driven glowing animations (Working/Done/Failed/Input)
  */
 @Composable
 fun AVAAvatarButton(
@@ -56,7 +52,7 @@ fun AVAAvatarButton(
 ) {
     val context = LocalContext.current
     
-    // Dynamic preference-change tracking for immediate UI updates
+    // Auto-refresh when avatar preference changes
     var customPath by remember {
         mutableStateOf(
             context.getSharedPreferences("ava_config", Context.MODE_PRIVATE)
@@ -90,16 +86,14 @@ fun AVAAvatarButton(
         } else null
     }
 
-    // Determine target glow color based on the current agent state
     val glowColor = when {
-        isError -> Color(0xFFEF5350)     // Soft Red
-        isDone -> Color(0xFF4FC3F7)      // Light Blue
-        needsUser -> Color(0xFFFFB74D)   // Amber/Orange
-        isRunning -> Color(0xFFFFFFFF)   // White
+        isError -> Color(0xFFEF5350)
+        isDone -> Color(0xFF4FC3F7)
+        needsUser -> Color(0xFFFFB74D)
+        isRunning -> Color(0xFFFFFFFF)
         else -> Color.Transparent
     }
 
-    // Slow infinite pulsing transition
     val infiniteTransition = rememberInfiniteTransition(label = "GlowPulse")
     val glowAlpha by infiniteTransition.animateFloat(
         initialValue = 0.25f,
@@ -111,9 +105,7 @@ fun AVAAvatarButton(
         label = "PulseAlpha"
     )
 
-    // Outer wrapping Box with padding. This ensures that the overall window size
-    // is larger than the 36.dp button, giving the glow plenty of room to render
-    // without getting clipped at the WindowManager layout boundaries!
+    // Outer container with padding so the canvas glow doesn't get clipped into a square
     Box(
         modifier = Modifier
             .padding(16.dp)
@@ -123,7 +115,7 @@ fun AVAAvatarButton(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                // 1. Blurred pulsing background glow (drawBehind has room because of outer padding)
+                // 1. Blurred background state glow
                 .drawBehind {
                     if (glowColor != Color.Transparent) {
                         val radiusPx = 8.dp.toPx()
@@ -142,23 +134,35 @@ fun AVAAvatarButton(
                         }
                     }
                 }
-                // 2. Slightly dark frosted glassmorphic background wash (50% frosted sheen)
-                .background(Color(0xFF202026).copy(alpha = 0.50f), CircleShape)
-                // 3. Dual-gradient reflection border outline
+                // 2. Slightly dark frosted wash base
+                .background(Color(0xFF1E1E26).copy(alpha = 0.40f), CircleShape)
+                // 3. Specular glass dome reflection (white glare offset to top-left)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.28f),
+                            Color.Transparent
+                        ),
+                        center = Offset(10f, 10f),
+                        radius = 45f
+                    ),
+                    shape = CircleShape
+                )
+                // 4. Gradient glass border edge
                 .border(
                     width = 1.dp,
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.45f), // Shiny reflection highlight
-                            Color.White.copy(alpha = 0.05f) // Darker bottom edge
+                            Color.White.copy(alpha = 0.55f), // Top reflection highlight
+                            Color.White.copy(alpha = 0.05f)  // Bottom shadow
                         ),
                         start = Offset(0f, 0f),
-                        end = Offset(100f, 100f)
+                        end = Offset(80f, 80f)
                     ),
                     shape = CircleShape
                 )
                 .clip(CircleShape)
-                // 4. Pointer input for drag gestures
+                // 5. Drag gesture interception
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragEnd = { onDragEnd() },
@@ -169,14 +173,14 @@ fun AVAAvatarButton(
                         }
                     )
                 }
-                // 5. Click handler
+                // 6. Click handler
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
             if (customBitmap != null) {
                 Image(
                     bitmap = customBitmap.asImageBitmap(),
-                    contentDescription = "AVA Custom Avatar",
+                    contentDescription = "Custom Avatar",
                     modifier = Modifier
                         .size(20.dp)
                         .clip(CircleShape),

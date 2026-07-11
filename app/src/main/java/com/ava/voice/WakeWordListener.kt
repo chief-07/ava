@@ -12,10 +12,9 @@ import com.ava.util.AppLogger
 import kotlinx.coroutines.*
 
 /**
- * WakeWordListener uses Android's native SpeechRecognizer to listen for "AVA" offline.
- * Requires no external libraries or downloads.
- * Implements always-on restart loops, ambient silent background listening,
- * wake acknowledgement tones, and cooperative mic back-off logic.
+ * WakeWordListener uses Android's native SpeechRecognizer in an infinite-session
+ * continuous streaming mode to listen for "AVA" in real-time.
+ * Uses partial results debouncing to support instant triggers and direct command redirection.
  */
 class WakeWordListener(
     private val context: Context,
@@ -29,6 +28,7 @@ class WakeWordListener(
     private var recognizerIntent: Intent? = null
     private var isListening = false
     private var isBackingOff = false
+    private var triggerJob: Job? = null
 
     init {
         mainScope.launch {
@@ -42,10 +42,15 @@ class WakeWordListener(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            
+            // Set extremely high complete silence thresholds to maintain continuous mic streaming
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3600000L) // 1 hour
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3600000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3600000L)
         }
     }
 
-    /** Starts the native speech recognition loop */
+    /** Starts the native continuous streaming recognition loop */
     fun start() {
         if (isListening) return
         isListening = true
@@ -58,6 +63,7 @@ class WakeWordListener(
     /** Stops listening and releases the speech recognizer resource */
     fun stop() {
         isListening = false
+        triggerJob?.cancel()
         mainScope.launch {
             destroyRecognizer()
         }
@@ -67,7 +73,7 @@ class WakeWordListener(
         try {
             audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0)
         } catch (e: Exception) {
-            // Ignore security or permission restrictions on some OS versions
+            // Ignore
         }
     }
 
@@ -82,7 +88,6 @@ class WakeWordListener(
     private fun playWakeTone() {
         mainScope.launch(Dispatchers.IO) {
             try {
-                // Play short notification chime on STREAM_MUSIC
                 val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 85)
                 toneGen.startTone(ToneGenerator.TONE_PROP_ACK, 180)
                 delay(200)
@@ -96,23 +101,23 @@ class WakeWordListener(
     private fun startListeningInternal() {
         if (!isListening || isBackingOff) return
 
-        destroyRecognizer() // Clean up any active state
+        destroyRecognizer() // Ensure previous resources are released
 
         try {
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
                 setRecognitionListener(SpeechListener())
                 
-                // Mute beep, trigger start, and unmute after beep duration has passed
+                // Mute beep only once during the initial start
                 muteSystemBeep()
                 startListening(recognizerIntent)
                 mainScope.launch {
-                    delay(350)
+                    delay(400)
                     unmuteSystemBeep()
                 }
             }
-            AppLogger.d(TAG, "Native SpeechRecognizer started listening (ambient)")
+            AppLogger.d(TAG, "Continuous speech stream started")
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Failed to start native SpeechRecognizer: ${e.message}")
+            AppLogger.e(TAG, "Failed to start speech stream: ${e.message}")
             unmuteSystemBeep()
             triggerBackoff()
         }
@@ -123,7 +128,7 @@ class WakeWordListener(
             speechRecognizer?.cancel()
             speechRecognizer?.destroy()
         } catch (e: Exception) {
-            // Ignore
+            // Ignore clean up errors
         } finally {
             speechRecognizer = null
         }
@@ -132,16 +137,22 @@ class WakeWordListener(
     private fun triggerBackoff() {
         if (isBackingOff || !isListening) return
         isBackingOff = true
-        AppLogger.w(TAG, "Microphone occupied. Entering 3s cooperative back-off...")
+        AppLogger.w(TAG, "Microphone in use. Backing off for 3s...")
         destroyRecognizer()
         mainScope.launch {
             delay(3000)
             if (isListening) {
                 isBackingOff = false
-                AppLogger.d(TAG, "Back-off ended. Re-starting listener...")
                 startListeningInternal()
             }
         }
+    }
+
+    private fun triggerWake(command: String?) {
+        // Stop background stream to allow active dialog or execution to capture the audio channel
+        stop()
+        playWakeTone()
+        onWakeWordDetected(command)
     }
 
     private inner class SpeechListener : RecognitionListener {
@@ -149,11 +160,9 @@ class WakeWordListener(
         override fun onBeginningOfSpeech() {}
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
-        
         override fun onEndOfSpeech() {}
 
         override fun onError(error: Int) {
-            // Unmute system beep on error just in case
             unmuteSystemBeep()
 
             val errorMsg = when (error) {
@@ -163,19 +172,17 @@ class WakeWordListener(
                 SpeechRecognizer.ERROR_NETWORK -> "Network error"
                 SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
                 SpeechRecognizer.ERROR_NO_MATCH -> "No speech match"
-                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy (mic occupied)"
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
                 SpeechRecognizer.ERROR_SERVER -> "Server error"
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech input timeout"
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
                 else -> "Unknown error ($error)"
             }
-            
-            // Log as debug unless it's a real permission/mic lock issue
+
             if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
-                AppLogger.w(TAG, "SpeechRecognizer warning: $errorMsg")
+                AppLogger.w(TAG, "Speech stream paused: $errorMsg")
                 triggerBackoff()
             } else {
-                AppLogger.d(TAG, "SpeechRecognizer idle error: $errorMsg")
-                // Restart ambient loop immediately
+                // If it timed out after a long period of silence, silently restart the stream
                 mainScope.launch {
                     delay(300)
                     if (isListening && !isBackingOff) {
@@ -191,7 +198,7 @@ class WakeWordListener(
             if (matches != null) {
                 processResults(matches)
             }
-            // Restart ambient loop
+            // Continuous session fallback restart
             mainScope.launch {
                 if (isListening && !isBackingOff) {
                     startListeningInternal()
@@ -213,23 +220,25 @@ class WakeWordListener(
                 val lowercase = text.lowercase()
                 val wakeWord = "ava"
                 if (lowercase.contains(wakeWord)) {
-                    AppLogger.i(TAG, "🔥 Native wake word detected: \"$text\"")
-                    
-                    // Stop background listener to let the action loop or input overlay take the mic
-                    stop()
+                    // Cancel any active scheduled trigger
+                    triggerJob?.cancel()
 
-                    // Play premium chime acknowledgment tone
-                    playWakeTone()
-
-                    // Parse trailing command
                     val index = lowercase.indexOf(wakeWord)
                     val trailingPart = lowercase.substring(index + wakeWord.length).trim()
                     val cleanCommand = trailingPart.removePrefix(",").removePrefix("and").trim()
 
                     if (cleanCommand.length > 2) {
-                        onWakeWordDetected(cleanCommand)
+                        // Debounce by 650ms to verify if the user is still speaking a command
+                        triggerJob = mainScope.launch {
+                            delay(650)
+                            triggerWake(cleanCommand)
+                        }
                     } else {
-                        onWakeWordDetected(null)
+                        // Trigger immediately on wake word pause
+                        triggerJob = mainScope.launch {
+                            delay(350)
+                            triggerWake(null)
+                        }
                     }
                     break
                 }

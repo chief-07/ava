@@ -176,6 +176,10 @@ fun AVASetupScreen(
             .getString("gemini_api_key", "") ?: ""
     )}
     var apiKeySaved by remember { mutableStateOf(false) }
+    var useSplitScreen by remember { mutableStateOf(
+        context.getSharedPreferences("ava_config", 0)
+            .getBoolean("use_split_screen", false)
+    )}
 
     Column(
         modifier = Modifier
@@ -259,6 +263,41 @@ fun AVASetupScreen(
                 ) {
                     Text(if (apiKeySaved) "Saved" else "Save", fontSize = 12.sp)
                 }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Multitasking Toggle Card
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2A3E), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Run in Multitasking Mode", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(2.dp))
+                    Text("Launch target apps in Split-Screen or Floating Popup mode", color = AVASubtext, fontSize = 11.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = useSplitScreen,
+                    onCheckedChange = { checked ->
+                        useSplitScreen = checked
+                        context.getSharedPreferences("ava_config", 0).edit().apply {
+                            putBoolean("use_split_screen", checked)
+                            apply()
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = AVAText,
+                        checkedTrackColor = AVABlue,
+                        uncheckedThumbColor = AVASubtext,
+                        uncheckedTrackColor = AVADark
+                    )
+                )
             }
 
             Spacer(Modifier.height(16.dp))

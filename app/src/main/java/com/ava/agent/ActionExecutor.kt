@@ -248,13 +248,51 @@ class ActionExecutor(private val service: AccessibilityService) {
         }
 
         val launchIntent = pm.getLaunchIntentForPackage(targetPackage)
-        return if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            service.startActivity(launchIntent)
-            "opened app \"$appName\""
-        } else {
-            "could not launch app \"$appName\""
+            ?: return "could not launch app \"$appName\""
+
+        val prefs = service.getSharedPreferences("ava_config", Context.MODE_PRIVATE)
+        val useSplitScreen = prefs.getBoolean("use_split_screen", false)
+
+        if (useSplitScreen) {
+            try {
+                Log.d(TAG, "Attempting to launch app in multitasking mode")
+                
+                // Try launching in Freeform/Popup Mode first using reflection
+                val options = android.app.ActivityOptions.makeBasic()
+                val setLaunchWindowingMode = android.app.ActivityOptions::class.java.getMethod(
+                    "setLaunchWindowingMode", Int::class.javaPrimitiveType
+                )
+                setLaunchWindowingMode.invoke(options, 5) // 5 = freeform window mode
+                
+                val metrics = service.resources.displayMetrics
+                val w = metrics.widthPixels
+                val h = metrics.heightPixels
+                options.setLaunchBounds(android.graphics.Rect(
+                    (w * 0.1).toInt(), (h * 0.25).toInt(), 
+                    (w * 0.9).toInt(), (h * 0.75).toInt()
+                ))
+                
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                service.startActivity(launchIntent, options.toBundle())
+                return "opened app \"$appName\" in popup window"
+            } catch (freeformEx: Exception) {
+                Log.w(TAG, "Freeform launch option failed, falling back to Split-Screen: ${freeformEx.message}")
+                
+                // Fallback to Split-Screen mode
+                try {
+                    service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    service.startActivity(launchIntent)
+                    return "opened app \"$appName\" in split-screen"
+                } catch (splitEx: Exception) {
+                    Log.e(TAG, "Multitasking fallback failed, launching full screen: ${splitEx.message}")
+                }
+            }
         }
+
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        service.startActivity(launchIntent)
+        return "opened app \"$appName\""
     }
 
     private fun takeScreenshot(): String {

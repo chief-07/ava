@@ -109,8 +109,8 @@ fun AVAAvatarButton(
                     }
                 }
             }
-            // 2. Frosted glass translucent background
-            .background(Color.White.copy(alpha = 0.12f), CircleShape)
+            // 2. Frosted glass translucent background (darkened for high contrast with white face)
+            .background(Color.Black.copy(alpha = 0.35f), CircleShape)
             // 3. Linear gradient reflection border outline
             .border(
                 width = 1.dp,

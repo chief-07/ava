@@ -37,12 +37,13 @@ class AgentLoop(
 
     // ─── Control ───────────────────────────────────────────────────────────────
 
-    fun start(task: String) {
+    fun start(task: String, resetMemory: Boolean = true) {
         loopJob?.cancel()
-        _state.value = AgentState(task = task, isRunning = true)
+        val currentSteps = if (resetMemory) mutableListOf() else _state.value.steps.toMutableList()
+        _state.value = AgentState(task = task, steps = currentSteps, isRunning = true)
         loopJob = scope.launch {
             try {
-                runLoop(task)
+                runLoop(task, resetMemory)
             } catch (e: Throwable) {
                 AppLogger.e(TAG, "Agent loop crashed: ${e.message}", e)
                 _state.update { it.copy(isRunning = false, isError = true) }
@@ -58,28 +59,30 @@ class AgentLoop(
     }
 
     fun provideUserInput(input: String) {
-        // Resume the loop after the user answered a question
-        if (_state.value.needsUser) {
-            val currentTask = _state.value.task
-            val enrichedTask = "$currentTask\nUser clarification: $input"
-            AppLogger.i(TAG, "Resuming task with user input: \"$input\"")
-            start(enrichedTask)
+        val currentState = _state.value
+        if (currentState.needsUser || currentState.isError || currentState.isDone) {
+            val currentTask = currentState.task
+            val enrichedTask = "$currentTask\nUser feedback: $input"
+            AppLogger.i(TAG, "Resuming/correcting task with user feedback: \"$input\"")
+            start(enrichedTask, resetMemory = false)
         }
     }
 
     // ─── Main loop ─────────────────────────────────────────────────────────────
 
-    private suspend fun runLoop(task: String) {
-        val steps = mutableListOf<String>()
-        var stepCount = 0
+    private suspend fun runLoop(task: String, resetMemory: Boolean) {
+        val steps = if (resetMemory) mutableListOf() else _state.value.steps.toMutableList()
+        var stepCount = steps.size
         var sameScreenCount = 0
         var lastScreenHash = ""
 
         val wasInitiallyInSplitScreen = isInMultiWindowMode(service)
         var didOpenNotifications = false
 
-        // Reset conversation memory for the new task
-        gemini.resetConversation()
+        // Reset conversation memory only for new tasks
+        if (resetMemory) {
+            gemini.resetConversation()
+        }
 
         try {
             while (stepCount < MAX_STEPS && _state.value.isRunning) {

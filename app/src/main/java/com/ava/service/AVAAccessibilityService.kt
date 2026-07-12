@@ -518,7 +518,13 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             if (!task.isNullOrBlank()) {
                 statusText = "Thinking..."
                 AppLogger.i(TAG, "Speech recognized from banner overlay: \"$task\"")
-                startTask(task)
+                
+                val currentAgentState = agentLoop?.state?.value
+                if (currentAgentState != null && (currentAgentState.needsUser || currentAgentState.isError)) {
+                    provideUserInput(task)
+                } else {
+                    startTask(task)
+                }
             } else {
                 statusText = "Cancelled"
                 delay(1500)

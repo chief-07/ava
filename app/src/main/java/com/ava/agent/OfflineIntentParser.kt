@@ -33,17 +33,17 @@ object OfflineIntentParser {
 
         val openAppMatcher = openAppPattern.matcher(cmd)
         if (openAppMatcher.matches()) {
-            return OfflineIntent(OfflineActionType.OPEN_APP, openAppMatcher.group(1).trim())
+            return OfflineIntent(OfflineActionType.OPEN_APP, openAppMatcher.group(1)!!.trim())
         }
 
         val volumeMatcher = volumePattern.matcher(cmd)
         if (volumeMatcher.matches()) {
-            return OfflineIntent(OfflineActionType.VOLUME, volumeMatcher.group(1))
+            return OfflineIntent(OfflineActionType.VOLUME, volumeMatcher.group(1)!!)
         }
 
         val brightnessMatcher = brightnessPattern.matcher(cmd)
         if (brightnessMatcher.matches()) {
-            return OfflineIntent(OfflineActionType.BRIGHTNESS, brightnessMatcher.group(1))
+            return OfflineIntent(OfflineActionType.BRIGHTNESS, brightnessMatcher.group(1)!!)
         }
 
         return when (cmd) {

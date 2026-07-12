@@ -37,14 +37,16 @@ class AgentLoop(
     private var loopJob: Job? = null
     private var lastLat = 0.0
     private var lastLon = 0.0
+    private var lastLocationName = ""
 
     // ─── Control ───────────────────────────────────────────────────────────────
 
-    fun start(task: String, resetMemory: Boolean = true, latitude: Double = 0.0, longitude: Double = 0.0) {
+    fun start(task: String, resetMemory: Boolean = true, latitude: Double = 0.0, longitude: Double = 0.0, locationName: String = "") {
         loopJob?.cancel()
         if (resetMemory) {
             lastLat = latitude
             lastLon = longitude
+            lastLocationName = locationName
         }
         val currentSteps = if (resetMemory) mutableListOf() else _state.value.steps.toMutableList()
         _state.value = AgentState(task = task, steps = currentSteps, isRunning = true)
@@ -92,10 +94,10 @@ class AgentLoop(
 
         var searchResults = ""
         if (resetMemory && serpApiKey.isNotBlank() && gemini.requiresRealTimeSearch(task)) {
-            AppLogger.d(TAG, "Task matches real-time search requirements. Querying SerpAPI...")
+            AppLogger.d(TAG, "Task matches real-time search requirements. Querying SerpAPI at location '$lastLocationName'...")
             val searchClient = SerpApiClient()
             try {
-                searchResults = searchClient.searchGoogle(task, serpApiKey, lastLat, lastLon)
+                searchResults = searchClient.searchGoogle(task, serpApiKey, lastLocationName)
                 AppLogger.d(TAG, "SerpAPI search results: $searchResults")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error fetching SerpAPI search results: ${e.message}")

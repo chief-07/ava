@@ -29,7 +29,6 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.ava.agent.AgentLoop
 import com.ava.agent.GeminiClient
 import com.ava.agent.AgentState
-import com.ava.overlay.AVABanner
 import com.ava.overlay.AVAAvatarButton
 import com.ava.util.AppLogger
 import com.ava.voice.SpeechInput
@@ -369,6 +368,24 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         return Pair(0.0, 0.0)
     }
 
+    private fun getLocationName(latitude: Double, longitude: Double): String {
+        if (latitude == 0.0 && longitude == 0.0) return ""
+        return try {
+            val geocoder = android.location.Geocoder(this, java.util.Locale.getDefault())
+            val addresses = geocoder.getFromLocation(latitude, longitude, 1)
+            if (!addresses.isNullOrEmpty()) {
+                val address = addresses[0]
+                val city = address.locality ?: address.subAdminArea ?: ""
+                val state = address.adminArea ?: ""
+                val country = address.countryName ?: ""
+                listOf(city, state, country).filter { it.isNotBlank() }.joinToString(", ")
+            } else ""
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Geocoder failed: ${e.message}")
+            ""
+        }
+    }
+
     private fun executeOfflineIntents(task: String, intents: List<com.ava.agent.OfflineIntent>) {
         serviceScope.launch {
             isRunningState = true
@@ -454,7 +471,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
         // Start the agent
         val coords = getLastKnownLocation()
-        loop.start(task, resetMemory = true, latitude = coords.first, longitude = coords.second)
+        val locationName = getLocationName(coords.first, coords.second)
+        loop.start(task, resetMemory = true, latitude = coords.first, longitude = coords.second, locationName = locationName)
 
         return true
     }

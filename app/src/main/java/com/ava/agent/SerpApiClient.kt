@@ -26,15 +26,16 @@ class SerpApiClient {
         }
     }
 
-    suspend fun searchGoogle(query: String, apiKey: String, latitude: Double = 0.0, longitude: Double = 0.0): String {
+    suspend fun searchGoogle(query: String, apiKey: String, location: String = ""): String {
         if (apiKey.isBlank()) return ""
         return try {
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
             var url = "https://serpapi.com/search.json?engine=google&q=$encodedQuery&api_key=$apiKey"
-            if (latitude != 0.0 && longitude != 0.0) {
-                url += "&ll=@$latitude,$longitude,14z"
+            if (location.isNotBlank()) {
+                val encodedLoc = URLEncoder.encode(location, "UTF-8")
+                url += "&location=$encodedLoc"
             }
-            AppLogger.d(TAG, "Querying SerpAPI for query: \"$query\" at ($latitude, $longitude)")
+            AppLogger.d(TAG, "Querying SerpAPI for query: \"$query\" at location: \"$location\"")
 
             val response: HttpResponse = client.get(url)
             val responseText = response.bodyAsText()

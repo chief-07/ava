@@ -66,8 +66,10 @@ class GeminiClient(val apiKey: String) {
     fun requiresRealTimeSearch(task: String): Boolean {
         val lowercase = task.lowercase()
         val keywords = listOf(
-            "weather", "temperature", "score", "match", "game", "play", "sports", "team",
-            "stock", "price", "current", "live", "today", "yesterday", "news", "latest", "rate"
+            "weather", "temperature", "temp", "forecast", "rain", "snow", "humidity", "wind",
+            "score", "match", "game", "play", "sports", "team", "won", "lose", "victory",
+            "stock", "price", "current", "live", "today", "yesterday", "news", "latest", "rate",
+            "time", "dollar", "crypto", "bitcoin", "currency", "exchange"
         )
         return keywords.any { lowercase.contains(it) }
     }
@@ -138,7 +140,7 @@ class GeminiClient(val apiKey: String) {
         
         COGNITIVE & NAVIGATION GUIDELINES:
         - ANTI-REPETITION: Look at the "STEPS TAKEN SO FAR" history. If an action you tried previously resulted in no screen change, did not work, or was ineffective, DO NOT repeat the exact same action or tap the same element index. Try a different element, a different approach, or scroll.
-        - DIRECT KNOWLEDGE RESPONSES: If the user's task is a general question, query, fact request, or translation (e.g., "who is a pediatrician", "who is a doctor", "what is photosynthesis", "translate X to French") that can be answered using your internal general knowledge, OR if the prompt contains grounding information under "=== GOOGLE SEARCH RESULTS ===" that answers the user's query (e.g., weather, sports scores, stocks), you must NOT interact with the phone screen or open any apps. Instead, immediately return action "DONE" and provide the complete, detailed answer in the "message" field. Only perform actions on the screen if the user explicitly requests device automation (e.g., "open WhatsApp", "search for cat videos on YouTube", "message Mom").
+        - DIRECT KNOWLEDGE RESPONSES: If the user's task is a general question, query, fact request, or translation (e.g., "who is a pediatrician", "who is a doctor", "what is photosynthesis", "translate X to French") that can be answered using your internal general knowledge, OR if the prompt contains grounding information under "=== GOOGLE SEARCH RESULTS ===" that answers the user's query (e.g., weather, sports scores, stocks), you must NOT interact with the phone screen or open any apps. Instead, immediately return action "DONE" and provide the complete, detailed answer in the "message" field. Only perform actions on the screen if the user explicitly requests device automation (e.g., "open WhatsApp", "search for cat videos on YouTube", "message Mom"). If the task is a compound task containing BOTH general questions/fact requests AND device automation requests (e.g., "who is the president of France and then open YouTube"), you must FIRST perform all required device automation actions on the screen. Once all screen automation is complete, you must then return action "DONE" and include the answer to the general question/fact request in the "message" field along with a summary of the actions taken. Do NOT return DONE on step 1 if there are screen automation steps remaining.
         - TASK TERMINATION SENSITIVITY: If the user's task is a search (e.g. "search for X on YouTube" or "find Y"), and the current screen already shows the search results, profile page, or target page, the task is 100% COMPLETE. You must return action "DONE" immediately. Do NOT repeat the search or tap search results again.
         - ON-PAGE ENGAGEMENT FOCUS: Once you successfully navigate to a website or open a target app screen, focus your actions entirely on the page contents/elements (such as links, buttons, or inputs on the page itself). Do NOT click back on the browser address bar or search bar to search again unless the page is completely empty, incorrect, or broken. Always search within the page itself: tap the website's search box, click a search icon, open the hamburger menu drawer, or default to searching via google.com and clicking the result.
         - BACKTRACKING RECOVERY: If you tap a link or button and it opens a wrong page, advertisement, or dead-end, immediately execute the "BACK" action to return to the previous screen. Do not try to proceed on an incorrect page.

@@ -26,6 +26,8 @@ private const val TAG = "AVA:ActionExecutor"
  */
 class ActionExecutor(private val service: AccessibilityService) {
 
+    var didToggleSplitScreen = false
+
     /**
      * Execute the given action. Returns a human-readable description
      * of what was done (appended to the step history shown in the overlay).
@@ -315,6 +317,7 @@ class ActionExecutor(private val service: AccessibilityService) {
                 // Fallback to Split-Screen mode
                 try {
                     service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
+                    didToggleSplitScreen = true
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
                     service.startActivity(launchIntent)
                     return "Opening app \"$appName\" in split-screen"

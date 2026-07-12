@@ -152,7 +152,7 @@ class AgentLoop(
                     ActionType.DONE -> {
                         val summary = action.message.ifBlank { "Task complete." }
                         steps.add("Done: $summary")
-                        emit(steps, isDone = true)
+                        emit(steps, isDone = true, userMessage = summary)
                         AppLogger.i(TAG, "Task completed successfully: $summary")
                         return
                     }
@@ -192,9 +192,10 @@ class AgentLoop(
                     }
                     delay(300)
                 }
-                if (!wasInitiallyInSplitScreen && isInMultiWindowMode(service)) {
+                if (executor.didToggleSplitScreen) {
                     AppLogger.i(TAG, "Cleanup: Restoring screen from multi-window/split-screen mode")
                     service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
+                    executor.didToggleSplitScreen = false
                     delay(300)
                 }
             }

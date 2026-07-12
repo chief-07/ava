@@ -144,7 +144,7 @@ class AgentLoop(
                     emit(steps)
                     AppLogger.d(TAG, "Executed: $richStep")
                     // Small delay to let the screen settle after action
-                    delay(800)
+                    delay(1200)
                 }
             }
         }

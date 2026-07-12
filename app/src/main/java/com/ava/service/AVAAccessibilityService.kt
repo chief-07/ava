@@ -86,6 +86,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private var isErrorState by mutableStateOf(false)
     private var isListeningState by mutableStateOf(false)
     private var liveTranscription by mutableStateOf("")
+    private var isUserExpandedState by mutableStateOf(false)
 
     companion object {
         const val ACTION_SHOW_BANNER = "com.ava.action.SHOW_BANNER"
@@ -213,9 +214,16 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                         isListening = isListeningState,
                         liveTranscription = liveTranscription,
                         statusText = statusText,
+                        isUserExpanded = isUserExpandedState,
+                        onToggleExpand = { expand ->
+                            isUserExpandedState = expand
+                            if (!expand) {
+                                cancelActiveTask()
+                            }
+                        },
                         onDrag = { dx, dy -> updateWindowPosition(dx, dy) },
                         onDragEnd = { saveWindowPosition() },
-                        onClick = { triggerSpeechInput() }
+                        onClickText = { triggerSpeechInput() }
                     )
                 }
             }
@@ -319,11 +327,12 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     fun showIdleBanner() {
         taskText = ""
-        statusText = "Ready — tap 🎤 MIC to speak"
+        statusText = "Ready — tap to speak"
         isRunningState = false
         isDoneState = false
         needsUserState = false
         isErrorState = false
+        isUserExpandedState = false
         showBanner("")
     }
 

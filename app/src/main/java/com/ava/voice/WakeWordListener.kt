@@ -74,6 +74,33 @@ class WakeWordListener(
                     startListening(VoskSpeechListener())
                 }
                 AppLogger.i(TAG, "Vosk continuous listening started silently (no beeps)")
+
+                // Enable Hardware Audio Effects (AGC & Noise Suppression) for better sensitivity
+                try {
+                    val recorderField = SpeechService::class.java.getDeclaredField("recorder").apply {
+                        isAccessible = true
+                    }
+                    val audioRecord = recorderField.get(speechService) as? android.media.AudioRecord
+                    if (audioRecord != null) {
+                        val sessionId = audioRecord.audioSessionId
+                        if (android.media.audiofx.AutomaticGainControl.isAvailable()) {
+                            val agc = android.media.audiofx.AutomaticGainControl.create(sessionId)
+                            agc.enabled = true
+                            AppLogger.i(TAG, "Hardware Automatic Gain Control (AGC) enabled successfully")
+                        } else {
+                            AppLogger.w(TAG, "Hardware Automatic Gain Control (AGC) not supported on this device")
+                        }
+                        if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
+                            val ns = android.media.audiofx.NoiseSuppressor.create(sessionId)
+                            ns.enabled = true
+                            AppLogger.i(TAG, "Hardware Noise Suppressor (NS) enabled successfully")
+                        } else {
+                            AppLogger.w(TAG, "Hardware Noise Suppressor (NS) not supported on this device")
+                        }
+                    }
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "Failed to apply hardware audio effects: ${e.message}")
+                }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Failed to start Vosk SpeechService: ${e.message}")
                 isListening = false

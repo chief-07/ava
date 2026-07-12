@@ -56,9 +56,11 @@ fun AVAAvatarButton(
     isListening: Boolean,
     liveTranscription: String,
     statusText: String,
+    isUserExpanded: Boolean,
+    onToggleExpand: (Boolean) -> Unit,
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragEnd: () -> Unit,
-    onClick: () -> Unit
+    onClickText: () -> Unit
 ) {
     val context = LocalContext.current
     
@@ -97,7 +99,7 @@ fun AVAAvatarButton(
     }
 
     // Determine target dimensions based on state
-    val isPill = isListening || isRunning || isDone || isError || needsUser
+    val isPill = isListening || isRunning || isDone || isError || needsUser || isUserExpanded
     val targetWidth = if (isPill) 280.dp else 36.dp
 
     val animatedWidth by animateDpAsState(
@@ -219,8 +221,12 @@ fun AVAAvatarButton(
                         }
                     )
                 }
-                // 6. Click handler
-                .clickable { onClick() }
+                // 6. Click handler (only when in Circle state to expand)
+                .then(
+                    if (!isPill) {
+                        Modifier.clickable { onToggleExpand(true) }
+                    } else Modifier
+                )
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -228,7 +234,13 @@ fun AVAAvatarButton(
             ) {
                 // Left avatar/smiley box (stays stationary on the left side)
                 Box(
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .then(
+                            if (isPill) {
+                                Modifier.clickable { onToggleExpand(false) }
+                            } else Modifier
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     if (customBitmap != null) {
@@ -254,7 +266,12 @@ fun AVAAvatarButton(
                     Row(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(end = 16.dp),
+                            .padding(end = 16.dp)
+                            .then(
+                                if (isPill && !isRunning) {
+                                    Modifier.clickable { onClickText() }
+                                } else Modifier
+                            ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Spacer(Modifier.width(4.dp))

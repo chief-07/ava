@@ -331,12 +331,17 @@ fun AVAAvatarButton(
                 ) {
                     Box(
                         modifier = Modifier
-                            .padding(end = 12.dp)
-                            .size(12.dp)
-                            .background(Color.White, shape = RoundedCornerShape(2.dp))
+                            .fillMaxHeight()
+                            .width(36.dp)
                             .clickable { onStopTask() },
                         contentAlignment = Alignment.Center
-                    ) {}
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(Color.White, shape = RoundedCornerShape(2.dp))
+                        )
+                    }
                 }
             }
         }

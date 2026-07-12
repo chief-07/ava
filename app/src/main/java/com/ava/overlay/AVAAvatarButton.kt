@@ -5,7 +5,11 @@ import android.graphics.BitmapFactory
 import android.graphics.BlurMaskFilter
 import android.graphics.Paint
 import android.content.SharedPreferences
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,23 +27,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ava.R
 import java.io.File
 
 /**
- * AVAAvatarButton — circular floating avatar button docked in the status bar.
- * Designed with a premium "slightly dark frosted glass dome" aesthetic:
- *   - Native Window-Level background blur (configured in layout params)
- *   - Specular diagonal glare highlight creating a physical glass reflection effect
- *   - Gradient border reflection outline
- *   - State-driven glowing animations (Working/Done/Failed/Input)
+ * AVAAvatarButton — circular floating avatar button that fluidly morphs
+ * into a pill-shaped transcription/action banner when activated.
  */
 @Composable
 fun AVAAvatarButton(
@@ -46,6 +53,9 @@ fun AVAAvatarButton(
     isDone: Boolean,
     needsUser: Boolean,
     isError: Boolean,
+    isListening: Boolean,
+    liveTranscription: String,
+    statusText: String,
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragEnd: () -> Unit,
     onClick: () -> Unit
@@ -86,15 +96,29 @@ fun AVAAvatarButton(
         } else null
     }
 
+    // Determine target dimensions based on state
+    val isPill = isListening || isRunning || isDone || isError || needsUser
+    val targetWidth = if (isPill) 280.dp else 36.dp
+
+    val animatedWidth by animateDpAsState(
+        targetValue = targetWidth,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "MorphWidth"
+    )
+
+    // Glow configurations
     val glowColor = when {
         isError -> Color(0xFFEF5350)
         isDone -> Color(0xFF4FC3F7)
         needsUser -> Color(0xFFFFB74D)
-        isRunning -> Color(0xFFFFFFFF)
+        isRunning || isListening -> Color(0xFFFFFFFF)
         else -> Color.Transparent
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "GlowPulse")
+    val infiniteTransition = rememberInfiniteTransition(label = "UIEffects")
     val glowAlpha by infiniteTransition.animateFloat(
         initialValue = 0.25f,
         targetValue = 0.85f,
@@ -105,7 +129,17 @@ fun AVAAvatarButton(
         label = "PulseAlpha"
     )
 
-    // Outer container with padding so the canvas glow doesn't get clipped into a square
+    val thinkingAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.40f,
+        targetValue = 1.00f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "ThinkingPulse"
+    )
+
+    // Outer container with padding so the canvas glow doesn't get clipped
     Box(
         modifier = Modifier
             .padding(16.dp)
@@ -114,7 +148,8 @@ fun AVAAvatarButton(
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .width(animatedWidth)
+                .height(36.dp)
                 // 1. Blurred background state glow
                 .drawBehind {
                     if (glowColor != Color.Transparent) {
@@ -125,10 +160,13 @@ fun AVAAvatarButton(
                                 isAntiAlias = true
                                 maskFilter = BlurMaskFilter(radiusPx, BlurMaskFilter.Blur.NORMAL)
                             }
-                            drawCircle(
-                                size.width / 2f,
+                            drawRoundRect(
+                                0f,
+                                0f,
+                                size.width,
+                                size.height,
                                 size.height / 2f,
-                                (size.width / 2f) + 1.dp.toPx(),
+                                size.height / 2f,
                                 paint
                             )
                         }
@@ -142,19 +180,19 @@ fun AVAAvatarButton(
                             Color(0xFF14141E).copy(alpha = 0.95f)  // Solid dark frosted edge
                         )
                     ),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(50)
                 )
                 // 3. Specular glass dome reflection (white glare offset to top-left)
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.35f), // Shiner reflection glare
+                            Color.White.copy(alpha = 0.35f), // Shiny reflection glare
                             Color.Transparent
                         ),
                         center = Offset(8f, 8f),
                         radius = 40f
                     ),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(50)
                 )
                 // 4. Gradient glass border edge
                 .border(
@@ -167,9 +205,9 @@ fun AVAAvatarButton(
                         start = Offset(0f, 0f),
                         end = Offset(80f, 80f)
                     ),
-                    shape = CircleShape
+                    shape = RoundedCornerShape(50)
                 )
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(50))
                 // 5. Drag gesture interception
                 .pointerInput(Unit) {
                     detectDragGestures(
@@ -182,25 +220,143 @@ fun AVAAvatarButton(
                     )
                 }
                 // 6. Click handler
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
+                .clickable { onClick() }
         ) {
-            if (customBitmap != null) {
-                Image(
-                    bitmap = customBitmap.asImageBitmap(),
-                    contentDescription = "Custom Avatar",
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_ava_avatar),
-                    contentDescription = "AVA Avatar",
-                    modifier = Modifier.size(16.dp)
-                )
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left avatar/smiley box (stays stationary on the left side)
+                Box(
+                    modifier = Modifier.size(36.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (customBitmap != null) {
+                        Image(
+                            bitmap = customBitmap.asImageBitmap(),
+                            contentDescription = "Custom Avatar",
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        AVASmileyFace(color = Color.White)
+                    }
+                }
+
+                // Animated text container
+                AnimatedVisibility(
+                    visible = isPill && animatedWidth > 120.dp,
+                    enter = fadeIn(animationSpec = tween(200)),
+                    exit = fadeOut(animationSpec = tween(150))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(Modifier.width(4.dp))
+                        
+                        val isThinking = isRunning && (
+                            statusText.startsWith("Thinking", ignoreCase = true) || 
+                            statusText.startsWith("Starting", ignoreCase = true)
+                        )
+                        
+                        if (isListening) {
+                            Text(
+                                text = if (liveTranscription.isBlank()) "Listening..." else liveTranscription,
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else if (isThinking) {
+                            Text(
+                                text = statusText,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontStyle = FontStyle.Italic,
+                                modifier = Modifier.graphicsLayer { alpha = thinkingAlpha },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            // Active execution action or final state (Done/Error/NeedsUser)
+                            val displayText = when {
+                                isError -> statusText
+                                isDone -> "✅ Done"
+                                needsUser -> statusText
+                                else -> statusText
+                            }
+                            Text(
+                                text = displayText,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/**
+ * AVASmileyFace - Draws the happy AVA face (inverted curved eyes and a smile)
+ * dynamically onto a canvas with pixel-perfect resolution.
+ */
+@Composable
+fun AVASmileyFace(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(18.dp)) {
+        val strokeWidthPx = 1.5.dp.toPx()
+        
+        // Left eye arc (inverted curve)
+        drawArc(
+            color = color,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(3.dp.toPx(), 4.dp.toPx()),
+            size = androidx.compose.ui.geometry.Size(3.5.dp.toPx(), 3.dp.toPx()),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = strokeWidthPx,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        )
+        
+        // Right eye arc (inverted curve)
+        drawArc(
+            color = color,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(11.5.dp.toPx(), 4.dp.toPx()),
+            size = androidx.compose.ui.geometry.Size(3.5.dp.toPx(), 3.dp.toPx()),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = strokeWidthPx,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        )
+        
+        // Smile mouth (smile curve)
+        drawArc(
+            color = color,
+            startAngle = 0f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(4.5.dp.toPx(), 7.dp.toPx()),
+            size = androidx.compose.ui.geometry.Size(9.dp.toPx(), 7.dp.toPx()),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = strokeWidthPx,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+        )
     }
 }

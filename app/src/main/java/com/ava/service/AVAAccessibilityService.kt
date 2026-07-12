@@ -84,6 +84,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private var isDoneState by mutableStateOf(false)
     private var needsUserState by mutableStateOf(false)
     private var isErrorState by mutableStateOf(false)
+    private var isListeningState by mutableStateOf(false)
+    private var liveTranscription by mutableStateOf("")
 
     companion object {
         const val ACTION_SHOW_BANNER = "com.ava.action.SHOW_BANNER"
@@ -208,6 +210,9 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                         isDone = isDoneState,
                         needsUser = needsUserState,
                         isError = isErrorState,
+                        isListening = isListeningState,
+                        liveTranscription = liveTranscription,
+                        statusText = statusText,
                         onDrag = { dx, dy -> updateWindowPosition(dx, dy) },
                         onDragEnd = { saveWindowPosition() },
                         onClick = { triggerSpeechInput() }
@@ -483,8 +488,13 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             // Unfocus the banner so speech recognizer has absolute focus
             updateBannerFocus(false)
             val oldStatus = statusText
+            isListeningState = true
+            liveTranscription = ""
             statusText = "🎙️ Listening..."
-            val task = speechInput.listenOnce()
+            val task = speechInput.listenOnce { partialText ->
+                liveTranscription = partialText
+            }
+            isListeningState = false
             if (!task.isNullOrBlank()) {
                 AppLogger.i(TAG, "Speech recognized from banner overlay: \"$task\"")
                 startTask(task)

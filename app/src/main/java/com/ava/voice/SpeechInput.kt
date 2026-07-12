@@ -24,14 +24,14 @@ class SpeechInput(private val context: Context) {
      * Start listening and return the recognized text, or null on failure.
      * Suspends until speech is detected and recognized.
      */
-    suspend fun listenOnce(): String? = suspendCancellableCoroutine { continuation ->
+    suspend fun listenOnce(onPartialResult: (String) -> Unit): String? = suspendCancellableCoroutine { continuation ->
         recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(context)
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
 
         recognizer?.setRecognitionListener(object : RecognitionListener {
@@ -71,7 +71,14 @@ class SpeechInput(private val context: Context) {
             override fun onEndOfSpeech() {
                 AppLogger.d(TAG, "Processing speech...")
             }
-            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onPartialResults(partialResults: Bundle?) {
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = matches?.firstOrNull()
+                if (!text.isNullOrBlank()) {
+                    AppLogger.d(TAG, "Partial speech: \"$text\"")
+                    onPartialResult(text)
+                }
+            }
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
 

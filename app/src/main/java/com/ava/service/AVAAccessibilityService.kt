@@ -58,6 +58,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private var geminiClient: GeminiClient? = null
     private lateinit var speechInput: SpeechInput
     private var wakeWordListener: WakeWordListener? = null
+    private var speechInputJob: kotlinx.coroutines.Job? = null
 
     // ─── Lifecycle & SavedState boilerplate ──────────────────────────────────
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -238,6 +239,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             windowManager?.addView(bannerContainer, params)
             lifecycleRegistry.currentState = Lifecycle.State.RESUMED
             AppLogger.i(TAG, "Banner shown directly by Accessibility Service ✅")
+            updatePersistentNotification()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to show banner: ${e.message}")
         }
@@ -256,6 +258,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         if (instance != null) {
             wakeWordListener?.start()
         }
+        updatePersistentNotification()
     }
 
     private fun updateWindowPosition(dx: Float, dy: Float) {
@@ -346,6 +349,11 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         showBanner("")
     }
 
+    fun showIdleBannerAndListen() {
+        showIdleBanner()
+        triggerSpeechInput()
+    }
+
     fun startTask(task: String): Boolean {
         val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
         val apiKey = prefs.getString("gemini_api_key", "") ?: ""
@@ -403,13 +411,15 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
     private fun toggleOverlay() {
         if (bannerContainer != null) {
+            cancelActiveTask()
+            speechInputJob?.cancel()
             hideBanner()
             wakeWordListener?.stop()
-            AppLogger.i(TAG, "Overlay hidden via toggle")
+            AppLogger.i(TAG, "Overlay hidden and everything stopped via toggle")
         } else {
-            showIdleBanner()
+            showIdleBannerAndListen()
             initWakeWordListener()
-            AppLogger.i(TAG, "Overlay shown via toggle")
+            AppLogger.i(TAG, "Overlay shown and listening via toggle")
         }
     }
 
@@ -464,10 +474,13 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
         val pendingIntent = PendingIntent.getService(this, 0, intent, piFlags)
 
+        val isOverlayActive = (bannerContainer != null)
+        val textText = if (isOverlayActive) "All done?" else "Your wish is my command"
+
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("AVA is active")
-            .setContentText("Tap to open voice search button")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("AVA")
+            .setContentText(textText)
+            .setSmallIcon(R.drawable.ic_ava_avatar)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -503,7 +516,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     }
 
     private fun triggerSpeechInput() {
-        serviceScope.launch {
+        speechInputJob?.cancel()
+        speechInputJob = serviceScope.launch {
             wakeWordListener?.stop()
             // Unfocus the banner so speech recognizer has absolute focus
             updateBannerFocus(false)

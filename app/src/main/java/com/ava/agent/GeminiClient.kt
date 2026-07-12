@@ -62,15 +62,6 @@ class GeminiClient(val apiKey: String) {
         AppLogger.d(TAG, "Conversation memory cleared for new task")
     }
 
-    private fun requiresSearch(task: String): Boolean {
-        val lowercase = task.lowercase()
-        val keywords = listOf(
-            "weather", "score", "news", "president", "temperature", "who is", "what is",
-            "date", "time", "stock", "price", "match", "game", "current", "latest", "today", "yesterday"
-        )
-        return lowercase.contains("?") || keywords.any { lowercase.contains(it) }
-    }
-
     /** Determine if a query specifically benefits from real-time external info (e.g. weather, news, scores) */
     fun requiresRealTimeSearch(task: String): Boolean {
         val lowercase = task.lowercase()
@@ -94,10 +85,9 @@ class GeminiClient(val apiKey: String) {
         searchResults: String = ""
     ): AgentAction {
         val userMessage = buildUserMessage(task, screenContext, stepHistory, searchResults)
-        val enableSearch = requiresSearch(task) && searchResults.isBlank()
 
         return try {
-            val responseText = callGemini(userMessage, enableSearch)
+            val responseText = callGemini(userMessage)
             val action = parseAction(responseText)
 
             // Store this turn in conversation history for future context
@@ -157,7 +147,6 @@ class GeminiClient(val apiKey: String) {
         - SELECTION STATE VERIFICATION: When executing multi-step actions (such as long-pressing to select an item), ALWAYS verify in the current SCREEN/ELEMENTS list that the selection state has successfully registered (e.g. look for selection indicators, checkboxes, trash can icons, or header text like "1 selected") BEFORE tapping follow-up menu buttons like "More options". If the selection state is not yet visible, use the WAIT action to let the screen update.
         - CONTEXT_VALIDATION: Always verify that the current screen, page header, active website URL, or app context matches the target of your task BEFORE performing actions. Never execute actions blindly.
         - RECIPIENT & CHAT VERIFICATION: Before typing or sending a message in a messaging app (e.g., WhatsApp, SMS, Telegram), you MUST verify that the active chat window header (usually a contact name or phone number) matches the target contact's name exactly. If there is an already open chat but it does NOT match the target name, do not type or send. You must tap the back button to return to the chat list, or tap search, type the target name, and tap the correct contact to open the correct chat. Never assume the currently opened chat is correct.
-        - GOOGLE_SEARCH_GROUNDING: You have native Google Search access enabled. When asked for real-time information (e.g. live scores, current weather, recent news), Gemini will automatically look it up. In these cases, explain in your reasoning field exactly what query you are looking up. Do NOT attempt to search for general device actions. Only use it when the user explicitly requests real-time web facts.
         
         AVAILABLE ACTIONS:
         TAP          - tap element by index. Requires: elementIndex
@@ -219,7 +208,7 @@ class GeminiClient(val apiKey: String) {
 
     // ─── HTTP call ────────────────────────────────────────────────────────────
 
-    private suspend fun callGemini(userMessage: String, enableSearch: Boolean): String {
+    private suspend fun callGemini(userMessage: String): String {
         val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
 
         val requestBody = buildJsonObject {
@@ -244,15 +233,7 @@ class GeminiClient(val apiKey: String) {
                 }
             }
 
-            if (enableSearch) {
-                putJsonArray("tools") {
-                    addJsonObject {
-                        putJsonObject("googleSearchRetrieval") {
-                            // Natively enables Google Search grounding on the Gemini API
-                        }
-                    }
-                }
-            }
+
 
             putJsonObject("generationConfig") {
                 put("temperature", 0.1)       // low temp = more deterministic actions

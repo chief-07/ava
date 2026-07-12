@@ -147,7 +147,7 @@ class MainActivity : ComponentActivity() {
             AppLogger.e(TAG, "Accessibility Service is not enabled. Go to Settings and turn it on.")
         } else {
             AppLogger.i(TAG, "Opening overlay banner... Minimizing app.")
-            service.showIdleBanner()
+            service.showIdleBannerAndListen()
             moveTaskToBack(true)
         }
     }

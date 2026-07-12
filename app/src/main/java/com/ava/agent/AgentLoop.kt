@@ -165,17 +165,9 @@ class AgentLoop(
                     }
                     else -> {
                         val stepDesc = executor.execute(action, task)
-                        val param = when {
-                            action.elementIndex >= 0 -> " [element ${action.elementIndex}]"
-                            action.text.isNotBlank() -> " [\"${action.text.take(15)}\"]"
-                            else -> ""
-                        }
-                        val reasonSuffix = if (action.reasoning.isNotBlank()) " (Reason: ${action.reasoning.take(45)})" else ""
-                        val richStep = "Action: ${action.action}$param$reasonSuffix → $stepDesc"
-                        
-                        steps.add(richStep)
+                        steps.add(stepDesc)
                         emit(steps)
-                        AppLogger.d(TAG, "Executed: $richStep")
+                        AppLogger.d(TAG, "Executed: $stepDesc")
                         // Small delay to let the screen settle after action
                         delay(1200)
                     }

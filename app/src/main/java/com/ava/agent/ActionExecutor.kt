@@ -43,9 +43,9 @@ class ActionExecutor(private val service: AccessibilityService) {
             ActionType.SCROLL_UP -> scroll(forward = false, root)
             ActionType.TYPE -> type(action.elementIndex, action.text, root)
             ActionType.ENTER -> pressEnter(root)
-            ActionType.BACK -> globalAction(AccessibilityService.GLOBAL_ACTION_BACK, "pressed Back")
-            ActionType.HOME -> globalAction(AccessibilityService.GLOBAL_ACTION_HOME, "pressed Home")
-            ActionType.NOTIFICATIONS -> globalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "opened notifications")
+            ActionType.BACK -> globalAction(AccessibilityService.GLOBAL_ACTION_BACK, "Pressing Back")
+            ActionType.HOME -> globalAction(AccessibilityService.GLOBAL_ACTION_HOME, "Pressing Home")
+            ActionType.NOTIFICATIONS -> globalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "Opening notifications")
             ActionType.WAIT -> waitForChange()
             ActionType.ASK_USER -> "asking: ${action.message}"
             ActionType.DONE -> "done: ${action.message}"
@@ -65,7 +65,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             val label = node.text?.toString() ?: node.contentDescription?.toString() ?: "element $elementIndex"
             Log.d(TAG, "Tapped: $label")
-            "tapped \"$label\""
+            "Tapping \"$label\""
         } else {
             // Fallback: tap by screen coordinates from bounds
             tapByCoordinates(elementIndex)
@@ -75,14 +75,14 @@ class ActionExecutor(private val service: AccessibilityService) {
     private fun tapByCoordinates(elementIndex: Int): String {
         val node = ScreenReader.getNode(elementIndex) ?: run {
             Log.w(TAG, "Element $elementIndex not found")
-            return "could not find element $elementIndex"
+            return "Could not find element $elementIndex"
         }
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
         val x = bounds.centerX().toFloat()
         val y = bounds.centerY().toFloat()
         dispatchTap(x, y)
-        return "tapped coordinates ($x, $y)"
+        return "Tapping coordinates ($x, $y)"
     }
 
     private fun dispatchTap(x: Float, y: Float) {
@@ -100,7 +100,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             if (success) {
                 val label = node.text?.toString() ?: node.contentDescription?.toString() ?: "element $elementIndex"
                 Log.d(TAG, "Long-pressed: $label")
-                return "long-pressed \"$label\""
+                return "Long-pressing \"$label\""
             }
         }
         return longPressByCoordinates(elementIndex)
@@ -109,7 +109,7 @@ class ActionExecutor(private val service: AccessibilityService) {
     private fun longPressByCoordinates(elementIndex: Int): String {
         val node = ScreenReader.getNode(elementIndex) ?: run {
             Log.w(TAG, "Element $elementIndex not found for long-press")
-            return "could not find element $elementIndex"
+            return "Could not find element $elementIndex"
         }
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
@@ -117,7 +117,7 @@ class ActionExecutor(private val service: AccessibilityService) {
         val y = bounds.centerY().toFloat()
         dispatchLongPress(x, y)
         val label = node.text?.toString() ?: node.contentDescription?.toString() ?: "element $elementIndex"
-        return "long-pressed \"$label\" at ($x, $y)"
+        return "Long-pressing \"$label\" at ($x, $y)"
     }
 
     private fun dispatchLongPress(x: Float, y: Float) {
@@ -135,7 +135,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
                          else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
             scrollable.performAction(action)
-            if (forward) "scrolled down" else "scrolled up"
+            if (forward) "Scrolling down" else "Scrolling up"
         } else {
             // Fallback: swipe gesture on the center of the screen
             val dir = if (forward) "down" else "up"
@@ -165,7 +165,7 @@ class ActionExecutor(private val service: AccessibilityService) {
         val stroke = GestureDescription.StrokeDescription(path, 0, 300)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         service.dispatchGesture(gesture, null, null)
-        return "swiped $direction"
+        return "Swiping $direction"
     }
 
     private fun type(elementIndex: Int, text: String, root: AccessibilityNodeInfo?): String {
@@ -182,7 +182,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             editable.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
             Log.d(TAG, "Typed \"$text\" into element $elementIndex")
             val label = editable.text?.toString() ?: editable.contentDescription?.toString() ?: "element $elementIndex"
-            "typed \"${text.take(20)}\" into \"$label\""
+            "Typing \"${text.take(20)}\" into \"$label\""
         } else {
             val fallback = findEditable(root)
             if (fallback != null) {
@@ -190,10 +190,10 @@ class ActionExecutor(private val service: AccessibilityService) {
                     putString(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
                 }
                 fallback.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-                "typed \"${text.take(20)}\" into focused field"
+                "Typing \"${text.take(20)}\" into focused field"
             } else {
                 Log.w(TAG, "No editable field found to type into")
-                "could not find a text field to type into"
+                "Could not find a text field to type into"
             }
         }
     }
@@ -208,7 +208,7 @@ class ActionExecutor(private val service: AccessibilityService) {
                 )
                 if (success) {
                     Log.d(TAG, "Pressed Enter via ACTION_IME_ENTER")
-                    return "pressed Enter on keyboard"
+                    return "Pressing Enter on keyboard"
                 }
             }
             // Fallback: append newline to trigger IME submit on older devices
@@ -218,10 +218,10 @@ class ActionExecutor(private val service: AccessibilityService) {
             }
             editable.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
             Log.d(TAG, "Pressed Enter via newline fallback")
-            return "submitted text input"
+            return "Submitting text input"
         }
         Log.w(TAG, "No editable field found to press Enter")
-        return "could not find focused field to press Enter"
+        return "Could not find focused field to press Enter"
     }
 
     private fun globalAction(action: Int, description: String): String {
@@ -233,7 +233,7 @@ class ActionExecutor(private val service: AccessibilityService) {
         // The AccessibilityService event listener will wake the agent loop
         // when a screen change is detected. Here we just sleep as a fallback.
         delay(2000)
-        return "waited for screen change"
+        return "Waiting for screen change"
     }
 
     // ─── Node finders ─────────────────────────────────────────────────────────
@@ -276,11 +276,11 @@ class ActionExecutor(private val service: AccessibilityService) {
 
         if (targetPackage == null) {
             Log.w(TAG, "App not found by name: $appName")
-            return "app \"$appName\" not found"
+            return "App \"$appName\" not found"
         }
 
         val launchIntent = pm.getLaunchIntentForPackage(targetPackage)
-            ?: return "could not launch app \"$appName\""
+            ?: return "Could not launch app \"$appName\""
 
         val prefs = service.getSharedPreferences("ava_config", Context.MODE_PRIVATE)
         val splitScreenPref = prefs.getBoolean("use_split_screen", false)
@@ -308,7 +308,7 @@ class ActionExecutor(private val service: AccessibilityService) {
                 
                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 service.startActivity(launchIntent, options.toBundle())
-                return "opened app \"$appName\" in popup window"
+                return "Opening app \"$appName\" in popup window"
             } catch (freeformEx: Exception) {
                 Log.w(TAG, "Freeform launch option failed, falling back to Split-Screen: ${freeformEx.message}")
                 
@@ -317,7 +317,7 @@ class ActionExecutor(private val service: AccessibilityService) {
                     service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
                     launchIntent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK)
                     service.startActivity(launchIntent)
-                    return "opened app \"$appName\" in split-screen"
+                    return "Opening app \"$appName\" in split-screen"
                 } catch (splitEx: Exception) {
                     Log.e(TAG, "Multitasking fallback failed, launching full screen: ${splitEx.message}")
                 }
@@ -326,17 +326,17 @@ class ActionExecutor(private val service: AccessibilityService) {
 
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         service.startActivity(launchIntent)
-        return "opened app \"$appName\""
+        return "Opening app \"$appName\""
     }
 
     private fun takeScreenshot(): String {
         return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             val success = service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
-            if (success) "took screenshot and saved to gallery"
-            else "failed to trigger system screenshot"
+            if (success) "Taking screenshot"
+            else "Failed to trigger system screenshot"
         } else {
             Log.w(TAG, "Screenshot global action is not supported on Android versions below 9")
-            "screenshots not supported on this device version"
+            "Screenshots not supported on this device version"
         }
     }
 
@@ -347,25 +347,25 @@ class ActionExecutor(private val service: AccessibilityService) {
 
     private fun setVolume(text: String): String {
         val audioManager = service.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            ?: return "failed to access volume service"
+            ?: return "Failed to access volume service"
 
         val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         if (text.equals("up", ignoreCase = true)) {
             audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
-            return "increased volume"
+            return "Increasing volume"
         }
         if (text.equals("down", ignoreCase = true)) {
             audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
-            return "decreased volume"
+            return "Decreasing volume"
         }
 
         val percentage = parsePercentage(text)
         return if (percentage != null) {
             val targetVolume = (maxVolume * percentage) / 100
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, AudioManager.FLAG_SHOW_UI)
-            "set volume to $percentage%"
+            "Setting volume to $percentage%"
         } else {
-            "invalid volume command: \"$text\""
+            "Invalid volume command: \"$text\""
         }
     }
 
@@ -394,21 +394,21 @@ class ActionExecutor(private val service: AccessibilityService) {
         if (text.equals("up", ignoreCase = true)) {
             val target = (currentBrightness + 40).coerceIn(10, 255)
             Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, target)
-            return "increased brightness"
+            return "Increasing brightness"
         }
         if (text.equals("down", ignoreCase = true)) {
             val target = (currentBrightness - 40).coerceIn(10, 255)
             Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, target)
-            return "decreased brightness"
+            return "Decreasing brightness"
         }
 
         val percentage = parsePercentage(text)
         return if (percentage != null) {
             val targetBrightness = (255 * percentage) / 100
             Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, targetBrightness)
-            "set brightness to $percentage%"
+            "Setting brightness to $percentage%"
         } else {
-            "invalid brightness command: \"$text\""
+            "Invalid brightness command: \"$text\""
         }
     }
 

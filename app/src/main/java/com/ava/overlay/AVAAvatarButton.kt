@@ -16,6 +16,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -277,6 +280,7 @@ fun AVAAvatarButton(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(end = 36.dp) // Leave exact space for the overlay Stop button!
+                                .horizontalScroll(rememberScrollState())
                                 .then(
                                     if (isPill && !isRunning) {
                                         Modifier.clickable { onClickText() }
@@ -296,10 +300,9 @@ fun AVAAvatarButton(
                                     text = if (liveTranscription.isBlank()) "Listening..." else liveTranscription,
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontStyle = FontStyle.Italic,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    fontWeight = FontWeight.Normal,
+                                    fontStyle = FontStyle.Normal,
+                                    maxLines = 1
                                 )
                             } else if (isThinking) {
                                 Text(
@@ -309,8 +312,7 @@ fun AVAAvatarButton(
                                     fontWeight = FontWeight.SemiBold,
                                     fontStyle = FontStyle.Italic,
                                     modifier = Modifier.graphicsLayer { alpha = thinkingAlpha },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    maxLines = 1
                                 )
                             } else {
                                 // If the status text is long and is Done/Error/NeedsUser, we will show a title here
@@ -330,14 +332,13 @@ fun AVAAvatarButton(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     fontStyle = FontStyle.Italic,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    maxLines = 1
                                 )
                             }
                         }
                     }
                 }
-
+ 
                 // Stop button (white square) on the right edge of the banner (overlay)
                 AnimatedVisibility(
                     visible = isPill && (isRunning || isListening || needsUser) && animatedWidth > 120.dp,
@@ -360,7 +361,7 @@ fun AVAAvatarButton(
                     }
                 }
             }
-
+ 
             // Extended content area below for long generated text
             val showExtendedText = isPill && statusText.length > 30 && (isDone || needsUser || isError)
             
@@ -372,6 +373,8 @@ fun AVAAvatarButton(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(max = 150.dp)
+                        .verticalScroll(rememberScrollState())
                         .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
                 ) {
                     // Subtle divider line

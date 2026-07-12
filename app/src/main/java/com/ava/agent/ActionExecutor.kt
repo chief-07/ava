@@ -30,7 +30,7 @@ class ActionExecutor(private val service: AccessibilityService) {
      * Execute the given action. Returns a human-readable description
      * of what was done (appended to the step history shown in the overlay).
      */
-    suspend fun execute(action: AgentAction, root: AccessibilityNodeInfo?): String {
+    suspend fun execute(action: AgentAction, root: AccessibilityNodeInfo?, task: String = ""): String {
         return when (ActionType.valueOf(action.action.uppercase())) {
             ActionType.TAP -> tap(action.elementIndex, root)
             ActionType.LONG_PRESS -> longPress(action.elementIndex, root)
@@ -45,7 +45,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             ActionType.ASK_USER -> "asking: ${action.message}"
             ActionType.DONE -> "done: ${action.message}"
             ActionType.SWIPE -> swipe(action.text)
-            ActionType.OPEN_APP -> openApp(action.text)
+            ActionType.OPEN_APP -> openApp(action.text, task)
             ActionType.TAKE_SCREENSHOT -> takeScreenshot()
             ActionType.SET_VOLUME -> setVolume(action.text)
             ActionType.SET_BRIGHTNESS -> setBrightness(action.text)
@@ -254,7 +254,7 @@ class ActionExecutor(private val service: AccessibilityService) {
         return null
     }
 
-    private fun openApp(appName: String): String {
+    private fun openApp(appName: String, task: String): String {
         val pm = service.packageManager
         val packages = pm.getInstalledPackages(0)
         var targetPackage: String? = null
@@ -278,7 +278,9 @@ class ActionExecutor(private val service: AccessibilityService) {
             ?: return "could not launch app \"$appName\""
 
         val prefs = service.getSharedPreferences("ava_config", Context.MODE_PRIVATE)
-        val useSplitScreen = prefs.getBoolean("use_split_screen", false)
+        val splitScreenPref = prefs.getBoolean("use_split_screen", false)
+        // If it's a simple "open app only" task, do NOT split screen
+        val useSplitScreen = splitScreenPref && !isSimpleOpenAppTask(task, appName)
 
         if (useSplitScreen) {
             try {
@@ -403,5 +405,43 @@ class ActionExecutor(private val service: AccessibilityService) {
         } else {
             "invalid brightness command: \"$text\""
         }
+    }
+
+    private fun isSimpleOpenAppTask(task: String, appName: String): Boolean {
+        val cleanTask = task.lowercase().trim()
+        val cleanAppName = appName.lowercase().trim()
+        
+        if (cleanTask.isEmpty()) return false
+
+        // Common open app prefixes
+        val prefixes = listOf("open ", "launch ", "start ", "go to ", "open up ")
+        
+        for (prefix in prefixes) {
+            if (cleanTask.startsWith(prefix)) {
+                val remaining = cleanTask.substring(prefix.length).trim()
+                // e.g. "youtube" or "youtube please" or "youtube only"
+                if (remaining == cleanAppName || 
+                    (remaining.contains(cleanAppName) && remaining.length <= cleanAppName.length + 8)) {
+                    return true
+                }
+                // Check if it's a short command containing the app name and no other action verbs
+                val verbs = listOf("search", "type", "send", "find", "click", "tap", "message", "post", "check")
+                if (remaining.contains(cleanAppName) && verbs.none { remaining.contains(it) } && remaining.length < 30) {
+                    return true
+                }
+            }
+        }
+        
+        // Direct matches or short commands without other action verbs
+        if (cleanTask == cleanAppName || (cleanTask.length < 20 && cleanTask.contains(cleanAppName))) {
+            val verbs = listOf("search", "type", "send", "find", "click", "tap", "message", "post", "check", "open", "launch", "start", "go")
+            val hasOtherVerbs = verbs.filterNot { it == "open" || it == "launch" || it == "start" || it == "go" }
+                .any { cleanTask.contains(it) }
+            if (!hasOtherVerbs) {
+                return true
+            }
+        }
+        
+        return false
     }
 }

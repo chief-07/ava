@@ -2,6 +2,7 @@ package com.ava.agent
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.ava.util.AppLogger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -74,7 +75,7 @@ class AgentLoop(
         var sameScreenCount = 0
         var lastScreenHash = ""
 
-        val wasInitiallyInSplitScreen = service.isInMultiWindowMode
+        val wasInitiallyInSplitScreen = isInMultiWindowMode(service)
         var didOpenNotifications = false
 
         // Reset conversation memory for the new task
@@ -142,7 +143,7 @@ class AgentLoop(
                         return
                     }
                     else -> {
-                        val stepDesc = executor.execute(action, root)
+                        val stepDesc = executor.execute(action, root, task)
                         val param = when {
                             action.elementIndex >= 0 -> " [element ${action.elementIndex}]"
                             action.text.isNotBlank() -> " [\"${action.text.take(15)}\"]"
@@ -178,7 +179,7 @@ class AgentLoop(
                     }
                     delay(300)
                 }
-                if (!wasInitiallyInSplitScreen && service.isInMultiWindowMode) {
+                if (!wasInitiallyInSplitScreen && isInMultiWindowMode(service)) {
                     AppLogger.i(TAG, "Cleanup: Restoring screen from multi-window/split-screen mode")
                     service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
                     delay(300)
@@ -211,5 +212,17 @@ class AgentLoop(
 
     fun cancel() {
         scope.cancel()
+    }
+
+    private fun isInMultiWindowMode(service: AccessibilityService): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
+            val windows = service.windows
+            for (window in windows) {
+                if (window.type == AccessibilityWindowInfo.TYPE_SPLIT_SCREEN_DIVIDER) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }

@@ -239,6 +239,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             windowManager?.addView(bannerContainer, params)
             lifecycleRegistry.currentState = Lifecycle.State.RESUMED
             AppLogger.i(TAG, "Banner shown directly by Accessibility Service ✅")
+            initWakeWordListener()
             updatePersistentNotification()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to show banner: ${e.message}")
@@ -255,9 +256,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
         bannerContainer = null
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
-        if (instance != null) {
-            wakeWordListener?.start()
-        }
+        wakeWordListener?.stop()
+        wakeWordListener = null
         updatePersistentNotification()
     }
 
@@ -349,10 +349,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         showBanner("")
     }
 
-    fun showIdleBannerAndListen() {
-        showIdleBanner()
-        triggerSpeechInput()
-    }
+
 
     fun startTask(task: String): Boolean {
         val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
@@ -414,12 +411,10 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             cancelActiveTask()
             speechInputJob?.cancel()
             hideBanner()
-            wakeWordListener?.stop()
             AppLogger.i(TAG, "Overlay hidden and everything stopped via toggle")
         } else {
-            showIdleBannerAndListen()
-            initWakeWordListener()
-            AppLogger.i(TAG, "Overlay shown and listening via toggle")
+            showIdleBanner()
+            AppLogger.i(TAG, "Overlay shown and ambient listening active via toggle")
         }
     }
 
@@ -436,7 +431,9 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                 }
                 ACTION_REFRESH_NOTIFICATION -> {
                     updatePersistentNotification()
-                    initWakeWordListener()
+                    if (bannerContainer != null) {
+                        initWakeWordListener()
+                    }
                 }
             }
         }
@@ -480,7 +477,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("AVA")
             .setContentText(textText)
-            .setSmallIcon(R.drawable.ic_ava_avatar)
+            .setSmallIcon(com.ava.R.drawable.ic_ava_avatar)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)

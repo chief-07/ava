@@ -108,18 +108,26 @@ class WakeWordListener(
         }
     }
 
-    /** Stops the audio recording stream and releases resources */
+    /** Stops the audio recording stream and releases resources synchronously */
     fun stop() {
         isListening = false
-        mainScope.launch {
-            try {
-                speechService?.stop()
-                speechService?.shutdown()
-            } catch (e: Exception) {
-                // Ignore
-            } finally {
-                speechService = null
-            }
+        try {
+            speechService?.stop()
+            speechService?.shutdown()
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Error stopping SpeechService: ${e.message}")
+        } finally {
+            speechService = null
+        }
+    }
+
+    /** Releases all resources and cancels background coroutine scope */
+    fun destroy() {
+        stop()
+        try {
+            mainScope.cancel()
+        } catch (e: Exception) {
+            // Ignore
         }
     }
 

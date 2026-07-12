@@ -135,6 +135,12 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         hideBanner()
         agentLoop?.cancel()
         geminiClient?.close()
+        try {
+            wakeWordListener?.destroy()
+            wakeWordListener = null
+        } catch (e: Exception) {
+            // Ignore
+        }
         serviceScope.cancel()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         store.clear()
@@ -217,10 +223,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                         isUserExpanded = isUserExpandedState,
                         onToggleExpand = { expand ->
                             isUserExpandedState = expand
-                            if (!expand) {
-                                cancelActiveTask()
-                            }
                         },
+                        onStopTask = { cancelActiveTask() },
                         onDrag = { dx, dy -> updateWindowPosition(dx, dy) },
                         onDragEnd = { saveWindowPosition() },
                         onClickText = { triggerSpeechInput() }
@@ -249,7 +253,9 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
         bannerContainer = null
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
-        wakeWordListener?.start()
+        if (instance != null) {
+            wakeWordListener?.start()
+        }
     }
 
     private fun updateWindowPosition(dx: Float, dy: Float) {
@@ -316,6 +322,10 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                     isDoneState = state.isDone
                     needsUserState = state.needsUser
                     isErrorState = state.isError
+
+                    if (state.isDone || state.isError || state.needsUser) {
+                        isUserExpandedState = true
+                    }
                     
                     updateBannerFocus(state.needsUser)
                 }
@@ -358,6 +368,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         isDoneState = false
         needsUserState = false
         isErrorState = false
+        isUserExpandedState = true
 
         showBanner(task)
         observeAgentState(loop.state)

@@ -58,6 +58,7 @@ fun AVAAvatarButton(
     statusText: String,
     isUserExpanded: Boolean,
     onToggleExpand: (Boolean) -> Unit,
+    onStopTask: () -> Unit,
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragEnd: () -> Unit,
     onClickText: () -> Unit
@@ -98,8 +99,8 @@ fun AVAAvatarButton(
         } else null
     }
 
-    // Determine target dimensions based on state
-    val isPill = isListening || isRunning || isDone || isError || needsUser || isUserExpanded
+    // Determine target dimensions based on state (can be minimized to circle during active tasks)
+    val isPill = isListening || needsUser || isUserExpanded
     val targetWidth = if (isPill) 280.dp else 36.dp
 
     val animatedWidth by animateDpAsState(
@@ -320,6 +321,22 @@ fun AVAAvatarButton(
                             )
                         }
                     }
+                }
+
+                // Stop button (white square) on the right edge of the banner
+                AnimatedVisibility(
+                    visible = isPill && (isRunning || isListening || needsUser) && animatedWidth > 120.dp,
+                    enter = fadeIn(animationSpec = tween(200)),
+                    exit = fadeOut(animationSpec = tween(150))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(12.dp)
+                            .background(Color.White, shape = RoundedCornerShape(2.dp))
+                            .clickable { onStopTask() },
+                        contentAlignment = Alignment.Center
+                    ) {}
                 }
             }
         }

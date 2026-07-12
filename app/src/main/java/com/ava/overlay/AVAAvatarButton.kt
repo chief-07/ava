@@ -122,10 +122,10 @@ fun AVAAvatarButton(
 
     val infiniteTransition = rememberInfiniteTransition(label = "UIEffects")
     val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 0.85f,
+        initialValue = 0.10f,
+        targetValue = 0.35f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
+            animation = tween(2200, easing = LinearOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "PulseAlpha"
@@ -155,7 +155,8 @@ fun AVAAvatarButton(
                 // 1. Blurred background state glow
                 .drawBehind {
                     if (glowColor != Color.Transparent) {
-                        val radiusPx = 8.dp.toPx()
+                        val radiusPx = 16.dp.toPx()
+                        val paddingPx = 3.dp.toPx()
                         drawContext.canvas.nativeCanvas.apply {
                             val paint = Paint().apply {
                                 color = glowColor.copy(alpha = glowAlpha).toArgb()
@@ -163,12 +164,12 @@ fun AVAAvatarButton(
                                 maskFilter = BlurMaskFilter(radiusPx, BlurMaskFilter.Blur.NORMAL)
                             }
                             drawRoundRect(
-                                0f,
-                                0f,
-                                size.width,
-                                size.height,
-                                size.height / 2f,
-                                size.height / 2f,
+                                -paddingPx,
+                                -paddingPx,
+                                size.width + paddingPx,
+                                size.height + paddingPx,
+                                (size.height + 2 * paddingPx) / 2f,
+                                (size.height + 2 * paddingPx) / 2f,
                                 paint
                             )
                         }

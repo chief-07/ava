@@ -340,7 +340,7 @@ fun AVAAvatarButton(
                 }
  
                 // Stop button (white square) on the right edge of the banner (overlay)
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = isPill && (isRunning || isListening || needsUser) && animatedWidth > 120.dp,
                     modifier = Modifier.align(Alignment.CenterEnd),
                     enter = fadeIn(animationSpec = tween(200)),

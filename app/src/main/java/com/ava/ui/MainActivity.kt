@@ -519,7 +519,7 @@ fun AVASetupScreen(
             )}
             val customAvatarBitmap = remember(customAvatarPath) {
                 if (customAvatarPath != null) {
-                    val file = File(customAvatarPath)
+                    val file = File(customAvatarPath!!)
                     if (file.exists()) {
                         try {
                             BitmapFactory.decodeFile(file.absolutePath)

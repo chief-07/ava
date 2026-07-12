@@ -74,86 +74,113 @@ class AgentLoop(
         var sameScreenCount = 0
         var lastScreenHash = ""
 
-        while (stepCount < MAX_STEPS && _state.value.isRunning) {
-            stepCount++
+        val wasInitiallyInSplitScreen = service.isInMultiWindowMode
+        var didOpenNotifications = false
 
-            // 1. READ — get current screen
-            service.clearCache()
-            val root = service.rootInActiveWindow
-            val appPackage = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
-            val screen = ScreenReader.buildContext(root, appPackage, "")
+        try {
+            while (stepCount < MAX_STEPS && _state.value.isRunning) {
+                stepCount++
 
-            // Stuck detection: same screen hash N times
-            val screenHash = screen.elements.joinToString { it.text + it.contentDesc }
-            if (screenHash == lastScreenHash) {
-                sameScreenCount++
-                if (sameScreenCount >= STUCK_THRESHOLD) {
-                    AppLogger.w(TAG, "Stuck detected after $sameScreenCount identical screens")
-                    emit(
-                        steps,
-                        needsUser = true,
-                        userMessage = "I seem to be stuck on the same screen. Can you help me proceed, or should I stop?"
-                    )
-                    return
-                }
-            } else {
-                sameScreenCount = 0
-                lastScreenHash = screenHash
-            }
+                // 1. READ — get current screen
+                service.clearCache()
+                val root = service.rootInActiveWindow
+                val appPackage = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
+                val screen = ScreenReader.buildContext(root, appPackage, "")
 
-            // 2. THINK — ask Gemini
-            emit(steps, thinking = true)
-            AppLogger.d(TAG, "Step $stepCount: Sending screen context to Gemini...")
-            val action = gemini.decideNextAction(task, screen, steps)
-            AppLogger.d(TAG, "Gemini selected: ${action.action} (Reasoning: ${action.reasoning})")
-
-            // 3. ACT — execute
-            val actionType = try {
-                ActionType.valueOf(action.action.uppercase())
-            } catch (e: IllegalArgumentException) {
-                AppLogger.e(TAG, "Unknown action type returned by LLM: ${action.action}")
-                ActionType.ASK_USER
-            }
-
-            when (actionType) {
-                ActionType.DONE -> {
-                    val summary = action.message.ifBlank { "Task complete." }
-                    steps.add("✅ Done: $summary")
-                    emit(steps, isDone = true)
-                    AppLogger.i(TAG, "Task completed successfully: $summary")
-                    return
-                }
-                ActionType.ASK_USER -> {
-                    steps.add("❓ ${action.message}")
-                    val isErr = action.message.contains("error", ignoreCase = true)
-                    emit(steps, needsUser = !isErr, isError = isErr, userMessage = action.message)
-                    AppLogger.i(TAG, "Agent needs user response (isError=$isErr): ${action.message}")
-                    return
-                }
-                else -> {
-                    val stepDesc = executor.execute(action, root)
-                    val param = when {
-                        action.elementIndex >= 0 -> " [element ${action.elementIndex}]"
-                        action.text.isNotBlank() -> " [\"${action.text.take(15)}\"]"
-                        else -> ""
+                // Stuck detection: same screen hash N times
+                val screenHash = screen.elements.joinToString { it.text + it.contentDesc }
+                if (screenHash == lastScreenHash) {
+                    sameScreenCount++
+                    if (sameScreenCount >= STUCK_THRESHOLD) {
+                        AppLogger.w(TAG, "Stuck detected after $sameScreenCount identical screens")
+                        emit(
+                            steps,
+                            needsUser = true,
+                            userMessage = "I seem to be stuck on the same screen. Can you help me proceed, or should I stop?"
+                        )
+                        return
                     }
-                    val reasonSuffix = if (action.reasoning.isNotBlank()) " (Reason: ${action.reasoning.take(45)})" else ""
-                    val richStep = "Action: ${action.action}$param$reasonSuffix → $stepDesc"
-                    
-                    steps.add(richStep)
-                    emit(steps)
-                    AppLogger.d(TAG, "Executed: $richStep")
-                    // Small delay to let the screen settle after action
-                    delay(1200)
+                } else {
+                    sameScreenCount = 0
+                    lastScreenHash = screenHash
+                }
+
+                // 2. THINK — ask Gemini
+                emit(steps, thinking = true)
+                AppLogger.d(TAG, "Step $stepCount: Sending screen context to Gemini...")
+                val action = gemini.decideNextAction(task, screen, steps)
+                AppLogger.d(TAG, "Gemini selected: ${action.action} (Reasoning: ${action.reasoning})")
+
+                // 3. ACT — execute
+                val actionType = try {
+                    ActionType.valueOf(action.action.uppercase())
+                } catch (e: IllegalArgumentException) {
+                    AppLogger.e(TAG, "Unknown action type returned by LLM: ${action.action}")
+                    ActionType.ASK_USER
+                }
+
+                if (actionType == ActionType.NOTIFICATIONS) {
+                    didOpenNotifications = true
+                }
+
+                when (actionType) {
+                    ActionType.DONE -> {
+                        val summary = action.message.ifBlank { "Task complete." }
+                        steps.add("Done: $summary")
+                        emit(steps, isDone = true)
+                        AppLogger.i(TAG, "Task completed successfully: $summary")
+                        return
+                    }
+                    ActionType.ASK_USER -> {
+                        steps.add(action.message)
+                        val isErr = action.message.contains("error", ignoreCase = true)
+                        emit(steps, needsUser = !isErr, isError = isErr, userMessage = action.message)
+                        AppLogger.i(TAG, "Agent needs user response (isError=$isErr): ${action.message}")
+                        return
+                    }
+                    else -> {
+                        val stepDesc = executor.execute(action, root)
+                        val param = when {
+                            action.elementIndex >= 0 -> " [element ${action.elementIndex}]"
+                            action.text.isNotBlank() -> " [\"${action.text.take(15)}\"]"
+                            else -> ""
+                        }
+                        val reasonSuffix = if (action.reasoning.isNotBlank()) " (Reason: ${action.reasoning.take(45)})" else ""
+                        val richStep = "Action: ${action.action}$param$reasonSuffix → $stepDesc"
+                        
+                        steps.add(richStep)
+                        emit(steps)
+                        AppLogger.d(TAG, "Executed: $richStep")
+                        // Small delay to let the screen settle after action
+                        delay(1200)
+                    }
                 }
             }
-        }
 
-        // Hit step cap
-        if (stepCount >= MAX_STEPS) {
-            steps.add("⚠️ Reached step limit ($MAX_STEPS steps)")
-            emit(steps, needsUser = true, userMessage = "I've taken $MAX_STEPS steps but haven't finished. Should I keep going?")
-            AppLogger.w(TAG, "Task reached step safety cap ($MAX_STEPS steps)")
+            // Hit step cap
+            if (stepCount >= MAX_STEPS) {
+                steps.add("Reached step limit ($MAX_STEPS steps)")
+                emit(steps, needsUser = true, userMessage = "I've taken $MAX_STEPS steps but haven't finished. Should I keep going?")
+                AppLogger.w(TAG, "Task reached step safety cap ($MAX_STEPS steps)")
+            }
+        } finally {
+            withContext(NonCancellable) {
+                AppLogger.d(TAG, "Entering cleanup phase...")
+                if (didOpenNotifications) {
+                    AppLogger.i(TAG, "Cleanup: Dismissing notification shade")
+                    if (android.os.Build.VERSION.SDK_INT >= 31) {
+                        service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
+                    } else {
+                        service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                    }
+                    delay(300)
+                }
+                if (!wasInitiallyInSplitScreen && service.isInMultiWindowMode) {
+                    AppLogger.i(TAG, "Cleanup: Restoring screen from multi-window/split-screen mode")
+                    service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
+                    delay(300)
+                }
+            }
         }
     }
 

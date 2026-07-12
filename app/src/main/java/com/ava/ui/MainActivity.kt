@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
     private var overlayEnabled by mutableStateOf(false)
     private var audioGranted by mutableStateOf(false)
     private var notificationsGranted by mutableStateOf(false)
+    private var locationGranted by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +91,7 @@ class MainActivity : ComponentActivity() {
                 overlayGranted = overlayEnabled,
                 audioGranted = audioGranted,
                 notificationsGranted = notificationsGranted,
+                locationGranted = locationGranted,
                 modelDownloader = modelDownloader,
                 onStartListening = { startListeningForTask() },
                 onSaveApiKey = { key -> saveApiKey(key) },
@@ -97,7 +99,8 @@ class MainActivity : ComponentActivity() {
                 onOpenAccessibilitySettings = { openAccessibilitySettings() },
                 onOpenOverlaySettings = { openOverlaySettings() },
                 onRequestAudioPermission = { requestMicrophonePermission() },
-                onRequestNotificationPermission = { requestNotificationPermission() }
+                onRequestNotificationPermission = { requestNotificationPermission() },
+                onRequestLocationPermission = { requestLocationPermission() }
             )
         }
     }
@@ -119,6 +122,7 @@ class MainActivity : ComponentActivity() {
         notificationsGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         } else true
+        locationGranted = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun requestMicrophonePermission() {
@@ -129,6 +133,13 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
         }
+    }
+
+    private fun requestLocationPermission() {
+        requestPermissions(
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            103
+        )
     }
 
     override fun onRequestPermissionsResult(
@@ -190,6 +201,7 @@ fun AVASetupScreen(
     overlayGranted: Boolean,
     audioGranted: Boolean,
     notificationsGranted: Boolean,
+    locationGranted: Boolean,
     modelDownloader: ModelDownloader,
     onStartListening: () -> Unit,
     onSaveApiKey: (String) -> Unit,
@@ -197,7 +209,8 @@ fun AVASetupScreen(
     onOpenAccessibilitySettings: () -> Unit,
     onOpenOverlaySettings: () -> Unit,
     onRequestAudioPermission: () -> Unit,
-    onRequestNotificationPermission: () -> Unit
+    onRequestNotificationPermission: () -> Unit,
+    onRequestLocationPermission: () -> Unit
 ) {
     val context = LocalContext.current
     var apiKey by remember { mutableStateOf(
@@ -262,6 +275,13 @@ fun AVASetupScreen(
                     onGrant = onRequestNotificationPermission
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            PermissionCard(
+                title = "5. Location Access",
+                description = "Required for local weather and coordinate grounding",
+                granted = locationGranted,
+                onGrant = onRequestLocationPermission
+            )
 
             Spacer(Modifier.height(16.dp))
 
@@ -358,6 +378,44 @@ fun AVASetupScreen(
                         useSplitScreen = checked
                         context.getSharedPreferences("ava_config", 0).edit().apply {
                             putBoolean("use_split_screen", checked)
+                            apply()
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = AVAText,
+                        checkedTrackColor = AVABlue,
+                        uncheckedThumbColor = AVASubtext,
+                        uncheckedTrackColor = AVADark
+                    )
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Offline Mode Toggle Card
+            var useOfflineMode by remember { mutableStateOf(
+                context.getSharedPreferences("ava_config", 0).getBoolean("use_offline_mode", false)
+            )}
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2A3E), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Run in Offline Mode", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(2.dp))
+                    Text("Use local speech intent templates first without LLM calls", color = AVASubtext, fontSize = 11.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = useOfflineMode,
+                    onCheckedChange = { checked ->
+                        useOfflineMode = checked
+                        context.getSharedPreferences("ava_config", 0).edit().apply {
+                            putBoolean("use_offline_mode", checked)
                             apply()
                         }
                     },

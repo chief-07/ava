@@ -35,11 +35,17 @@ class AgentLoop(
     val state: StateFlow<AgentState> = _state.asStateFlow()
 
     private var loopJob: Job? = null
+    private var lastLat = 0.0
+    private var lastLon = 0.0
 
     // ─── Control ───────────────────────────────────────────────────────────────
 
-    fun start(task: String, resetMemory: Boolean = true) {
+    fun start(task: String, resetMemory: Boolean = true, latitude: Double = 0.0, longitude: Double = 0.0) {
         loopJob?.cancel()
+        if (resetMemory) {
+            lastLat = latitude
+            lastLon = longitude
+        }
         val currentSteps = if (resetMemory) mutableListOf() else _state.value.steps.toMutableList()
         _state.value = AgentState(task = task, steps = currentSteps, isRunning = true)
         loopJob = scope.launch {
@@ -89,7 +95,7 @@ class AgentLoop(
             AppLogger.d(TAG, "Task matches real-time search requirements. Querying SerpAPI...")
             val searchClient = SerpApiClient()
             try {
-                searchResults = searchClient.searchGoogle(task, serpApiKey)
+                searchResults = searchClient.searchGoogle(task, serpApiKey, lastLat, lastLon)
                 AppLogger.d(TAG, "SerpAPI search results: $searchResults")
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error fetching SerpAPI search results: ${e.message}")

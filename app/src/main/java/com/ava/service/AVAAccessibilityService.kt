@@ -351,8 +351,82 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
 
 
+    private fun getLastKnownLocation(): Pair<Double, Double> {
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            try {
+                val locationManager = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+                val providers = locationManager.getProviders(true)
+                for (provider in providers) {
+                    val loc = locationManager.getLastKnownLocation(provider)
+                    if (loc != null) {
+                        return Pair(loc.latitude, loc.longitude)
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error getting location: ${e.message}")
+            }
+        }
+        return Pair(0.0, 0.0)
+    }
+
+    private fun executeOfflineIntents(task: String, intents: List<com.ava.agent.OfflineIntent>) {
+        serviceScope.launch {
+            isRunningState = true
+            isDoneState = false
+            needsUserState = false
+            isErrorState = false
+            taskText = task
+            statusText = "Processing offline..."
+            isUserExpandedState = true
+
+            val steps = mutableListOf<String>()
+            val executor = com.ava.agent.ActionExecutor(this@AVAAccessibilityService)
+
+            for (intent in intents) {
+                val agentAction = when (intent.type) {
+                    com.ava.agent.OfflineActionType.HOME -> com.ava.agent.AgentAction(action = "HOME", reasoning = "Offline command")
+                    com.ava.agent.OfflineActionType.BACK -> com.ava.agent.AgentAction(action = "BACK", reasoning = "Offline command")
+                    com.ava.agent.OfflineActionType.NOTIFICATIONS -> com.ava.agent.AgentAction(action = "NOTIFICATIONS", reasoning = "Offline command")
+                    com.ava.agent.OfflineActionType.TAKE_SCREENSHOT -> com.ava.agent.AgentAction(action = "TAKE_SCREENSHOT", reasoning = "Offline command")
+                    com.ava.agent.OfflineActionType.VOLUME -> com.ava.agent.AgentAction(action = "SET_VOLUME", text = intent.text, reasoning = "Offline command")
+                    com.ava.agent.OfflineActionType.BRIGHTNESS -> com.ava.agent.AgentAction(action = "SET_BRIGHTNESS", text = intent.text, reasoning = "Offline command")
+                    com.ava.agent.OfflineActionType.OPEN_APP -> com.ava.agent.AgentAction(action = "OPEN_APP", text = intent.text, reasoning = "Offline command")
+                }
+
+                statusText = when (intent.type) {
+                    com.ava.agent.OfflineActionType.HOME -> "Pressing Home"
+                    com.ava.agent.OfflineActionType.BACK -> "Pressing Back"
+                    com.ava.agent.OfflineActionType.NOTIFICATIONS -> "Opening Notifications"
+                    com.ava.agent.OfflineActionType.TAKE_SCREENSHOT -> "Taking Screenshot"
+                    com.ava.agent.OfflineActionType.VOLUME -> "Setting volume to ${intent.text}"
+                    com.ava.agent.OfflineActionType.BRIGHTNESS -> "Setting brightness to ${intent.text}"
+                    com.ava.agent.OfflineActionType.OPEN_APP -> "Opening ${intent.text}"
+                }
+
+                val stepDesc = executor.execute(agentAction, task)
+                steps.add(stepDesc)
+                AppLogger.d(TAG, "Offline executed: $stepDesc")
+                delay(800)
+            }
+
+            isRunningState = false
+            isDoneState = true
+            statusText = "Done: Executed local sequence"
+        }
+    }
+
     fun startTask(task: String): Boolean {
         val prefs = getSharedPreferences("ava_config", MODE_PRIVATE)
+        val useOfflineMode = prefs.getBoolean("use_offline_mode", false)
+
+        if (useOfflineMode) {
+            val offlineIntents = com.ava.agent.OfflineIntentParser.parse(task)
+            if (offlineIntents != null) {
+                executeOfflineIntents(task, offlineIntents)
+                return true
+            }
+        }
+
         val apiKey = prefs.getString("gemini_api_key", "") ?: ""
 
         // Dynamically initialize or refresh the agent loop if the API key has changed
@@ -379,7 +453,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         observeAgentState(loop.state)
 
         // Start the agent
-        loop.start(task)
+        val coords = getLastKnownLocation()
+        loop.start(task, resetMemory = true, latitude = coords.first, longitude = coords.second)
 
         return true
     }

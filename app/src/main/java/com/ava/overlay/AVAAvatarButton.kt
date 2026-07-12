@@ -296,7 +296,8 @@ fun AVAAvatarButton(
                                     text = if (liveTranscription.isBlank()) "Listening..." else liveTranscription,
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Normal,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontStyle = FontStyle.Italic,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -305,7 +306,7 @@ fun AVAAvatarButton(
                                     text = "Thinking...",
                                     color = Color.White,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
                                     fontStyle = FontStyle.Italic,
                                     modifier = Modifier.graphicsLayer { alpha = thinkingAlpha },
                                     maxLines = 1,
@@ -327,7 +328,8 @@ fun AVAAvatarButton(
                                     text = displayText,
                                     color = Color.White,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontStyle = FontStyle.Italic,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -388,7 +390,8 @@ fun AVAAvatarButton(
                         color = Color.White.copy(alpha = 0.9f),
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
-                        fontWeight = FontWeight.Normal
+                        fontWeight = FontWeight.SemiBold,
+                        fontStyle = FontStyle.Italic
                     )
                 }
             }

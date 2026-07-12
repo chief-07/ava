@@ -77,6 +77,9 @@ class AgentLoop(
         val wasInitiallyInSplitScreen = service.isInMultiWindowMode
         var didOpenNotifications = false
 
+        // Reset conversation memory for the new task
+        gemini.resetConversation()
+
         try {
             while (stepCount < MAX_STEPS && _state.value.isRunning) {
                 stepCount++
@@ -84,7 +87,7 @@ class AgentLoop(
                 // 1. READ — get current screen
                 service.clearCache()
                 val root = service.rootInActiveWindow
-                val appPackage = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
+                val appPackage = root?.packageName?.toString() ?: "unknown"
                 val screen = ScreenReader.buildContext(root, appPackage, "")
 
                 // Stuck detection: same screen hash N times

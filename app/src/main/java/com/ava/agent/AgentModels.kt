@@ -12,6 +12,7 @@ enum class ActionType {
     SCROLL_DOWN,    // scroll the focused scrollable down
     SWIPE,          // directional swipe (left/right/up/down)
     TYPE,           // type text into a focused field
+    ENTER,          // press the keyboard's Enter/Search/Go/Send button
     BACK,           // press the Back button
     HOME,           // press the Home button
     NOTIFICATIONS,  // pull down the notification shade
@@ -43,7 +44,11 @@ data class UIElement(
     val isClickable: Boolean,
     val isScrollable: Boolean,
     val isEditable: Boolean,
-    val bounds: String          // "left,top,right,bottom"
+    val isChecked: Boolean,
+    val isSelected: Boolean,
+    val isFocused: Boolean,
+    val bounds: String,         // "left,top,right,bottom"
+    val depth: Int = 0
 ) {
     /** Compact text representation sent to the LLM. */
     override fun toString(): String {
@@ -52,8 +57,12 @@ data class UIElement(
             if (isClickable) add("tap")
             if (isScrollable) add("scroll")
             if (isEditable) add("type")
+            if (isChecked) add("checked")
+            if (isSelected) add("selected")
+            if (isFocused) add("focused")
         }.joinToString("/")
-        return "[$index] $label ($flags) @$bounds"
+        val indent = "  ".repeat(depth.coerceAtMost(4))
+        return "$indent[$index] $label ($flags) @$bounds"
     }
 }
 

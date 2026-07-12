@@ -37,6 +37,7 @@ class ActionExecutor(private val service: AccessibilityService) {
             ActionType.SCROLL_DOWN -> scroll(forward = true, root)
             ActionType.SCROLL_UP -> scroll(forward = false, root)
             ActionType.TYPE -> type(action.elementIndex, action.text, root)
+            ActionType.ENTER -> pressEnter(root)
             ActionType.BACK -> globalAction(AccessibilityService.GLOBAL_ACTION_BACK, "pressed Back")
             ActionType.HOME -> globalAction(AccessibilityService.GLOBAL_ACTION_HOME, "pressed Home")
             ActionType.NOTIFICATIONS -> globalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "opened notifications")
@@ -190,6 +191,32 @@ class ActionExecutor(private val service: AccessibilityService) {
                 "could not find a text field to type into"
             }
         }
+    }
+
+    private fun pressEnter(root: AccessibilityNodeInfo?): String {
+        val editable = findEditable(root)
+        if (editable != null) {
+            // API 30+ supports ACTION_IME_ENTER directly
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                val success = editable.performAction(
+                    AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id
+                )
+                if (success) {
+                    Log.d(TAG, "Pressed Enter via ACTION_IME_ENTER")
+                    return "pressed Enter on keyboard"
+                }
+            }
+            // Fallback: append newline to trigger IME submit on older devices
+            val currentText = editable.text?.toString() ?: ""
+            val args = Bundle().apply {
+                putString(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, currentText + "\n")
+            }
+            editable.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            Log.d(TAG, "Pressed Enter via newline fallback")
+            return "submitted text input"
+        }
+        Log.w(TAG, "No editable field found to press Enter")
+        return "could not find focused field to press Enter"
     }
 
     private fun globalAction(action: Int, description: String): String {

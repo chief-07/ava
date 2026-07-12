@@ -68,5 +68,5 @@ dependencies {
 
     // Local Vosk Offline Speech Recognition
     implementation(files("libs/vosk-android-0.3.38.aar"))
-    implementation("net.java.dev.jna:jna:5.6.0")
+    implementation(files("libs/jna-5.8.0.aar"))
 }

@@ -134,17 +134,25 @@ fun AVAAvatarButton(
                         }
                     }
                 }
-                // 2. Slightly dark frosted wash base
-                .background(Color(0xFF1E1E26).copy(alpha = 0.40f), CircleShape)
+                // 2. High-contrast frosted glass wash base
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF2E2E3C).copy(alpha = 0.88f), // Lighter frosted center wash
+                            Color(0xFF14141E).copy(alpha = 0.95f)  // Solid dark frosted edge
+                        )
+                    ),
+                    shape = CircleShape
+                )
                 // 3. Specular glass dome reflection (white glare offset to top-left)
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.35f), // Shiner reflection glare
                             Color.Transparent
                         ),
-                        center = Offset(10f, 10f),
-                        radius = 45f
+                        center = Offset(8f, 8f),
+                        radius = 40f
                     ),
                     shape = CircleShape
                 )
@@ -153,8 +161,8 @@ fun AVAAvatarButton(
                     width = 1.dp,
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.55f), // Top reflection highlight
-                            Color.White.copy(alpha = 0.05f)  // Bottom shadow
+                            Color.White.copy(alpha = 0.65f), // High-contrast rim highlight
+                            Color.White.copy(alpha = 0.15f)  // Bottom edge shadow
                         ),
                         start = Offset(0f, 0f),
                         end = Offset(80f, 80f)

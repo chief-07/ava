@@ -306,7 +306,7 @@ fun AVAAvatarButton(
                             // Active execution action or final state (Done/Error/NeedsUser)
                             val displayText = when {
                                 isError -> statusText
-                                isDone -> "✅ Done"
+                                isDone -> "Done"
                                 needsUser -> statusText
                                 else -> statusText
                             }

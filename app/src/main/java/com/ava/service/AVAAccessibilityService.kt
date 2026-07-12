@@ -304,8 +304,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                 withContext(Dispatchers.Main) {
                     taskText = state.task
                     statusText = when {
-                        state.isDone -> "✅ Done"
-                        state.needsUser -> "❓ ${state.userMessage}"
+                        state.isDone -> "Done"
+                        state.needsUser -> state.userMessage
                         state.steps.isNotEmpty() -> state.steps.last()
                         else -> "Thinking..."
                     }
@@ -499,12 +499,13 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             val oldStatus = statusText
             isListeningState = true
             liveTranscription = ""
-            statusText = "🎙️ Listening..."
+            statusText = "Listening..."
             val task = speechInput.listenOnce { partialText ->
                 liveTranscription = partialText
             }
             isListeningState = false
             if (!task.isNullOrBlank()) {
+                statusText = "Thinking..."
                 AppLogger.i(TAG, "Speech recognized from banner overlay: \"$task\"")
                 startTask(task)
             } else {
@@ -513,8 +514,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                 val currentAgentState = agentLoop?.state?.value
                 if (currentAgentState != null) {
                     statusText = when {
-                        currentAgentState.isDone -> "✅ Done"
-                        currentAgentState.needsUser -> "❓ ${currentAgentState.userMessage}"
+                        currentAgentState.isDone -> "Done"
+                        currentAgentState.needsUser -> currentAgentState.userMessage
                         currentAgentState.steps.isNotEmpty() -> currentAgentState.steps.last()
                         else -> oldStatus
                     }

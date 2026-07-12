@@ -30,10 +30,15 @@ class ActionExecutor(private val service: AccessibilityService) {
      * Execute the given action. Returns a human-readable description
      * of what was done (appended to the step history shown in the overlay).
      */
-    suspend fun execute(action: AgentAction, root: AccessibilityNodeInfo?, task: String = ""): String {
+    suspend fun execute(action: AgentAction, task: String = ""): String {
+        val root = try {
+            service.rootInActiveWindow
+        } catch (e: Exception) {
+            null
+        }
         return when (ActionType.valueOf(action.action.uppercase())) {
-            ActionType.TAP -> tap(action.elementIndex, root)
-            ActionType.LONG_PRESS -> longPress(action.elementIndex, root)
+            ActionType.TAP -> tap(action.elementIndex)
+            ActionType.LONG_PRESS -> longPress(action.elementIndex)
             ActionType.SCROLL_DOWN -> scroll(forward = true, root)
             ActionType.SCROLL_UP -> scroll(forward = false, root)
             ActionType.TYPE -> type(action.elementIndex, action.text, root)
@@ -54,8 +59,8 @@ class ActionExecutor(private val service: AccessibilityService) {
 
     // ─── Individual actions ───────────────────────────────────────────────────
 
-    private fun tap(elementIndex: Int, root: AccessibilityNodeInfo?): String {
-        val node = ScreenReader.findNodeByIndex(root, elementIndex)
+    private fun tap(elementIndex: Int): String {
+        val node = ScreenReader.getNode(elementIndex)
         return if (node != null && node.isClickable) {
             node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             val label = node.text?.toString() ?: node.contentDescription?.toString() ?: "element $elementIndex"
@@ -63,12 +68,12 @@ class ActionExecutor(private val service: AccessibilityService) {
             "tapped \"$label\""
         } else {
             // Fallback: tap by screen coordinates from bounds
-            tapByCoordinates(elementIndex, root)
+            tapByCoordinates(elementIndex)
         }
     }
 
-    private fun tapByCoordinates(elementIndex: Int, root: AccessibilityNodeInfo?): String {
-        val node = ScreenReader.findNodeByIndex(root, elementIndex) ?: run {
+    private fun tapByCoordinates(elementIndex: Int): String {
+        val node = ScreenReader.getNode(elementIndex) ?: run {
             Log.w(TAG, "Element $elementIndex not found")
             return "could not find element $elementIndex"
         }
@@ -88,8 +93,8 @@ class ActionExecutor(private val service: AccessibilityService) {
         Log.d(TAG, "Dispatched tap at ($x, $y)")
     }
 
-    private fun longPress(elementIndex: Int, root: AccessibilityNodeInfo?): String {
-        val node = ScreenReader.findNodeByIndex(root, elementIndex)
+    private fun longPress(elementIndex: Int): String {
+        val node = ScreenReader.getNode(elementIndex)
         if (node != null && node.isClickable) {
             val success = node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
             if (success) {
@@ -98,11 +103,11 @@ class ActionExecutor(private val service: AccessibilityService) {
                 return "long-pressed \"$label\""
             }
         }
-        return longPressByCoordinates(elementIndex, root)
+        return longPressByCoordinates(elementIndex)
     }
 
-    private fun longPressByCoordinates(elementIndex: Int, root: AccessibilityNodeInfo?): String {
-        val node = ScreenReader.findNodeByIndex(root, elementIndex) ?: run {
+    private fun longPressByCoordinates(elementIndex: Int): String {
+        val node = ScreenReader.getNode(elementIndex) ?: run {
             Log.w(TAG, "Element $elementIndex not found for long-press")
             return "could not find element $elementIndex"
         }
@@ -165,7 +170,7 @@ class ActionExecutor(private val service: AccessibilityService) {
 
     private fun type(elementIndex: Int, text: String, root: AccessibilityNodeInfo?): String {
         val editable = if (elementIndex >= 0) {
-            ScreenReader.findNodeByIndex(root, elementIndex)
+            ScreenReader.getNode(elementIndex)
         } else {
             findEditable(root)
         }

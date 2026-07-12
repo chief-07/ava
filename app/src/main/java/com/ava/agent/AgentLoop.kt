@@ -109,9 +109,7 @@ class AgentLoop(
 
                 // 1. READ — get current screen
                 service.clearCache()
-                val root = service.rootInActiveWindow
-                val appPackage = root?.packageName?.toString() ?: "unknown"
-                val screen = ScreenReader.buildContext(root, appPackage, "")
+                val screen = ScreenReader.buildContext(service)
 
                 // Stuck detection: same screen hash N times
                 val screenHash = screen.elements.joinToString { it.text + it.contentDesc }
@@ -166,7 +164,7 @@ class AgentLoop(
                         return
                     }
                     else -> {
-                        val stepDesc = executor.execute(action, root, task)
+                        val stepDesc = executor.execute(action, task)
                         val param = when {
                             action.elementIndex >= 0 -> " [element ${action.elementIndex}]"
                             action.text.isNotBlank() -> " [\"${action.text.take(15)}\"]"

@@ -1,6 +1,7 @@
 package com.ava.agent
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.ava.util.AppLogger
@@ -79,6 +80,24 @@ class AgentLoop(
         val wasInitiallyInSplitScreen = isInMultiWindowMode(service)
         var didOpenNotifications = false
 
+        val context = service.applicationContext
+        val prefs = context.getSharedPreferences("ava_config", Context.MODE_PRIVATE)
+        val serpApiKey = prefs.getString("serp_api_key", "") ?: ""
+
+        var searchResults = ""
+        if (resetMemory && serpApiKey.isNotBlank() && gemini.requiresRealTimeSearch(task)) {
+            AppLogger.d(TAG, "Task matches real-time search requirements. Querying SerpAPI...")
+            val searchClient = SerpApiClient()
+            try {
+                searchResults = searchClient.searchGoogle(task, serpApiKey)
+                AppLogger.d(TAG, "SerpAPI search results: $searchResults")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error fetching SerpAPI search results: ${e.message}")
+            } finally {
+                searchClient.close()
+            }
+        }
+
         // Reset conversation memory only for new tasks
         if (resetMemory) {
             gemini.resetConversation()
@@ -115,7 +134,8 @@ class AgentLoop(
                 // 2. THINK — ask Gemini
                 emit(steps, thinking = true)
                 AppLogger.d(TAG, "Step $stepCount: Sending screen context to Gemini...")
-                val action = gemini.decideNextAction(task, screen, steps)
+                val currentSearchResults = if (stepCount == steps.size + 1) searchResults else ""
+                val action = gemini.decideNextAction(task, screen, steps, currentSearchResults)
                 AppLogger.d(TAG, "Gemini selected: ${action.action} (Reasoning: ${action.reasoning})")
 
                 // 3. ACT — execute

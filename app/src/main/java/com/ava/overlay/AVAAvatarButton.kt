@@ -9,6 +9,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -149,10 +151,10 @@ fun AVAAvatarButton(
             .wrapContentSize(),
         contentAlignment = Alignment.Center
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .width(animatedWidth)
-                .height(36.dp)
+                .heightIn(min = 36.dp)
                 // 1. Blurred background state glow
                 .drawBehind {
                     if (glowColor != Color.Transparent) {
@@ -164,13 +166,14 @@ fun AVAAvatarButton(
                                 isAntiAlias = true
                                 maskFilter = BlurMaskFilter(radiusPx, BlurMaskFilter.Blur.NORMAL)
                             }
+                            val cornerRadiusPx = 18.dp.toPx() + paddingPx
                             drawRoundRect(
                                 -paddingPx,
                                 -paddingPx,
                                 size.width + paddingPx,
                                 size.height + paddingPx,
-                                (size.height + 2 * paddingPx) / 2f,
-                                (size.height + 2 * paddingPx) / 2f,
+                                cornerRadiusPx,
+                                cornerRadiusPx,
                                 paint
                             )
                         }
@@ -184,7 +187,7 @@ fun AVAAvatarButton(
                             Color(0xFF14141E).copy(alpha = 0.95f)  // Solid dark frosted edge
                         )
                     ),
-                    shape = RoundedCornerShape(50)
+                    shape = RoundedCornerShape(18.dp)
                 )
                 // 3. Specular glass dome reflection (white glare offset to top-left)
                 .background(
@@ -196,7 +199,7 @@ fun AVAAvatarButton(
                         center = Offset(8f, 8f),
                         radius = 40f
                     ),
-                    shape = RoundedCornerShape(50)
+                    shape = RoundedCornerShape(18.dp)
                 )
                 // 4. Gradient glass border edge
                 .border(
@@ -209,9 +212,9 @@ fun AVAAvatarButton(
                         start = Offset(0f, 0f),
                         end = Offset(80f, 80f)
                     ),
-                    shape = RoundedCornerShape(50)
+                    shape = RoundedCornerShape(18.dp)
                 )
-                .clip(RoundedCornerShape(50))
+                .clip(RoundedCornerShape(18.dp))
                 // 5. Drag gesture interception
                 .pointerInput(Unit) {
                     detectDragGestures(
@@ -230,102 +233,113 @@ fun AVAAvatarButton(
                     } else Modifier
                 )
         ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
             ) {
-                // Left avatar/smiley box (stays stationary on the left side)
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .then(
-                            if (isPill) {
-                                Modifier.clickable { onToggleExpand(false) }
-                            } else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (customBitmap != null) {
-                        Image(
-                            bitmap = customBitmap.asImageBitmap(),
-                            contentDescription = "Custom Avatar",
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        AVASmileyFace(color = Color.White)
-                    }
-                }
-
-                // Animated text container
-                AnimatedVisibility(
-                    visible = isPill && animatedWidth > 120.dp,
-                    enter = fadeIn(animationSpec = tween(200)),
-                    exit = fadeOut(animationSpec = tween(150))
-                ) {
-                    Row(
+                    // Left avatar/smiley box (stays stationary on the left side)
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 16.dp)
+                            .size(36.dp)
                             .then(
-                                if (isPill && !isRunning) {
-                                    Modifier.clickable { onClickText() }
+                                if (isPill) {
+                                    Modifier.clickable { onToggleExpand(false) }
                                 } else Modifier
                             ),
-                        verticalAlignment = Alignment.CenterVertically
+                        contentAlignment = Alignment.Center
                     ) {
-                        Spacer(Modifier.width(4.dp))
-                        
-                        val isThinking = isRunning && (
-                            statusText.startsWith("Thinking", ignoreCase = true) || 
-                            statusText.startsWith("Starting", ignoreCase = true)
-                        )
-                        
-                        if (isListening) {
-                            Text(
-                                text = if (liveTranscription.isBlank()) "Listening..." else liveTranscription,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Normal,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        } else if (isThinking) {
-                            Text(
-                                text = statusText,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontStyle = FontStyle.Italic,
-                                modifier = Modifier.graphicsLayer { alpha = thinkingAlpha },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        if (customBitmap != null) {
+                            Image(
+                                bitmap = customBitmap.asImageBitmap(),
+                                contentDescription = "Custom Avatar",
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
                             )
                         } else {
-                            // Active execution action or final state (Done/Error/NeedsUser)
-                            val displayText = when {
-                                isError -> statusText
-                                isDone -> "Done"
-                                needsUser -> statusText
-                                else -> statusText
-                            }
-                            Text(
-                                text = displayText,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                            AVASmileyFace(color = Color.White)
+                        }
+                    }
+
+                    // Animated text container
+                    AnimatedVisibility(
+                        visible = isPill && animatedWidth > 120.dp,
+                        enter = fadeIn(animationSpec = tween(200)),
+                        exit = fadeOut(animationSpec = tween(150))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 36.dp) // Leave exact space for the overlay Stop button!
+                                .then(
+                                    if (isPill && !isRunning) {
+                                        Modifier.clickable { onClickText() }
+                                    } else Modifier
+                                ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Spacer(Modifier.width(4.dp))
+                            
+                            val isThinking = isRunning && (
+                                statusText.startsWith("Thinking", ignoreCase = true) || 
+                                statusText.startsWith("Starting", ignoreCase = true)
                             )
+                            
+                            if (isListening) {
+                                Text(
+                                    text = if (liveTranscription.isBlank()) "Listening..." else liveTranscription,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else if (isThinking) {
+                                Text(
+                                    text = "Thinking...",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontStyle = FontStyle.Italic,
+                                    modifier = Modifier.graphicsLayer { alpha = thinkingAlpha },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else {
+                                // If the status text is long and is Done/Error/NeedsUser, we will show a title here
+                                // and the full text in the expanded area below!
+                                val displayText = when {
+                                    statusText.length > 30 && isDone -> "Answer"
+                                    statusText.length > 30 && needsUser -> "Question"
+                                    statusText.length > 30 && isError -> "Error"
+                                    isError -> statusText
+                                    isDone -> "Done"
+                                    needsUser -> statusText
+                                    else -> statusText
+                                }
+                                Text(
+                                    text = displayText,
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
 
-                // Stop button (white square) on the right edge of the banner
+                // Stop button (white square) on the right edge of the banner (overlay)
                 AnimatedVisibility(
                     visible = isPill && (isRunning || isListening || needsUser) && animatedWidth > 120.dp,
+                    modifier = Modifier.align(Alignment.CenterEnd),
                     enter = fadeIn(animationSpec = tween(200)),
                     exit = fadeOut(animationSpec = tween(150))
                 ) {
@@ -338,10 +352,44 @@ fun AVAAvatarButton(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(12.dp)
-                                .background(Color.White, shape = RoundedCornerShape(2.dp))
+                                .size(10.dp)
+                                .background(Color.White) // sharp square
                         )
                     }
+                }
+            }
+
+            // Extended content area below for long generated text
+            val showExtendedText = isPill && statusText.length > 30 && (isDone || needsUser || isError)
+            
+            AnimatedVisibility(
+                visible = showExtendedText,
+                enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
+                exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(250)) + fadeOut(animationSpec = tween(200))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)
+                ) {
+                    // Subtle divider line
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color.White.copy(alpha = 0.1f))
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    
+                    // Display the full answer or message
+                    Text(
+                        text = statusText,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.Normal
+                    )
                 }
             }
         }

@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
                 modelDownloader = modelDownloader,
                 onStartListening = { startListeningForTask() },
                 onSaveApiKey = { key -> saveApiKey(key) },
+                onSaveSerpApiKey = { key -> saveSerpApiKey(key) },
                 onOpenAccessibilitySettings = { openAccessibilitySettings() },
                 onOpenOverlaySettings = { openOverlaySettings() },
                 onRequestAudioPermission = { requestMicrophonePermission() },
@@ -159,6 +160,14 @@ class MainActivity : ComponentActivity() {
         AppLogger.i(TAG, "Gemini API key saved")
     }
 
+    private fun saveSerpApiKey(key: String) {
+        getSharedPreferences("ava_config", MODE_PRIVATE)
+            .edit()
+            .putString("serp_api_key", key)
+            .apply()
+        AppLogger.i(TAG, "SerpAPI key saved")
+    }
+
     private fun openAccessibilitySettings() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
@@ -184,6 +193,7 @@ fun AVASetupScreen(
     modelDownloader: ModelDownloader,
     onStartListening: () -> Unit,
     onSaveApiKey: (String) -> Unit,
+    onSaveSerpApiKey: (String) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onOpenOverlaySettings: () -> Unit,
     onRequestAudioPermission: () -> Unit,
@@ -195,6 +205,11 @@ fun AVASetupScreen(
             .getString("gemini_api_key", "") ?: ""
     )}
     var apiKeySaved by remember { mutableStateOf(false) }
+    var serpApiKey by remember { mutableStateOf(
+        context.getSharedPreferences("ava_config", 0)
+            .getString("serp_api_key", "") ?: ""
+    )}
+    var serpApiKeySaved by remember { mutableStateOf(false) }
     var useSplitScreen by remember { mutableStateOf(
         context.getSharedPreferences("ava_config", 0)
             .getBoolean("use_split_screen", false)
@@ -281,6 +296,42 @@ fun AVASetupScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AVABlue)
                 ) {
                     Text(if (apiKeySaved) "Saved" else "Save", fontSize = 12.sp)
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // SerpAPI Key input
+            Text("SerpAPI Key (Optional)", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = serpApiKey,
+                    onValueChange = {
+                        serpApiKey = it
+                        serpApiKeySaved = false
+                    },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Paste SerpAPI key for live info", color = AVASubtext, fontSize = 12.sp) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AVABlue,
+                        unfocusedBorderColor = AVASubtext,
+                        cursorColor = AVABlue,
+                        focusedTextColor = AVAText,
+                        unfocusedTextColor = AVAText
+                    )
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        onSaveSerpApiKey(serpApiKey)
+                        serpApiKeySaved = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AVABlue)
+                ) {
+                    Text(if (serpApiKeySaved) "Saved" else "Save", fontSize = 12.sp)
                 }
             }
 

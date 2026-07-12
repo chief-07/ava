@@ -310,7 +310,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
                 withContext(Dispatchers.Main) {
                     taskText = state.task
                     statusText = when {
-                        state.isDone -> "Done"
+                        state.isDone -> state.userMessage.ifBlank { "Done" }
                         state.needsUser -> state.userMessage
                         state.steps.isNotEmpty() -> state.steps.last()
                         else -> "Thinking..."

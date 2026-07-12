@@ -71,6 +71,16 @@ class GeminiClient(val apiKey: String) {
         return lowercase.contains("?") || keywords.any { lowercase.contains(it) }
     }
 
+    /** Determine if a query specifically benefits from real-time external info (e.g. weather, news, scores) */
+    fun requiresRealTimeSearch(task: String): Boolean {
+        val lowercase = task.lowercase()
+        val keywords = listOf(
+            "weather", "temperature", "score", "match", "game", "play", "sports", "team",
+            "stock", "price", "current", "live", "today", "yesterday", "news", "latest", "rate"
+        )
+        return keywords.any { lowercase.contains(it) }
+    }
+
     // ─── Main method ─────────────────────────────────────────────────────────
 
     /**
@@ -80,10 +90,11 @@ class GeminiClient(val apiKey: String) {
     suspend fun decideNextAction(
         task: String,
         screenContext: ScreenContext,
-        stepHistory: List<String>
+        stepHistory: List<String>,
+        searchResults: String = ""
     ): AgentAction {
-        val userMessage = buildUserMessage(task, screenContext, stepHistory)
-        val enableSearch = requiresSearch(task)
+        val userMessage = buildUserMessage(task, screenContext, stepHistory, searchResults)
+        val enableSearch = requiresSearch(task) && searchResults.isBlank()
 
         return try {
             val responseText = callGemini(userMessage, enableSearch)
@@ -182,10 +193,16 @@ class GeminiClient(val apiKey: String) {
     private fun buildUserMessage(
         task: String,
         screen: ScreenContext,
-        history: List<String>
+        history: List<String>,
+        searchResults: String
     ): String = buildString {
         appendLine("=== USER TASK ===")
         appendLine(task)
+
+        if (searchResults.isNotBlank()) {
+            appendLine("\n=== GOOGLE SEARCH RESULTS ===")
+            appendLine(searchResults)
+        }
 
         if (history.isNotEmpty()) {
             appendLine("\n=== STEPS TAKEN SO FAR ===")

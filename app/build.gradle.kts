@@ -65,4 +65,7 @@ dependencies {
 
     // JSON serialization
     implementation(libs.kotlinx.serialization.json)
+
+    // Local Vosk Offline Speech Recognition
+    implementation(files("libs/vosk-android-0.3.38.aar"))
 }

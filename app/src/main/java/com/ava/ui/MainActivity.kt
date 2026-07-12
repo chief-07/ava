@@ -43,6 +43,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ava.service.AVAAccessibilityService
 import com.ava.util.AppLogger
 import com.ava.voice.SpeechInput
+import com.ava.voice.ModelDownloader
 import kotlinx.coroutines.launch
 
 import kotlinx.coroutines.flow.first
@@ -60,6 +61,7 @@ private const val TAG = "MainActivity"
 class MainActivity : ComponentActivity() {
 
     private lateinit var speechInput: SpeechInput
+    private lateinit var modelDownloader: ModelDownloader
 
     // Compose State variables for permissions status
     private var accessibilityEnabled by mutableStateOf(false)
@@ -71,6 +73,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AppLogger.init(this)  // enable file-backed log persistence
         speechInput = SpeechInput(this)
+        modelDownloader = ModelDownloader(this)
 
         AppLogger.i(TAG, "MainActivity created")
 
@@ -87,6 +90,7 @@ class MainActivity : ComponentActivity() {
                 overlayGranted = overlayEnabled,
                 audioGranted = audioGranted,
                 notificationsGranted = notificationsGranted,
+                modelDownloader = modelDownloader,
                 onStartListening = { startListeningForTask() },
                 onSaveApiKey = { key -> saveApiKey(key) },
                 onOpenAccessibilitySettings = { openAccessibilitySettings() },
@@ -177,6 +181,7 @@ fun AVASetupScreen(
     overlayGranted: Boolean,
     audioGranted: Boolean,
     notificationsGranted: Boolean,
+    modelDownloader: ModelDownloader,
     onStartListening: () -> Unit,
     onSaveApiKey: (String) -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
@@ -358,6 +363,101 @@ fun AVASetupScreen(
                         uncheckedTrackColor = AVADark
                     )
                 )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ── Voice Model Downloader Card ───────────────────────────────────
+            var downloadState by remember { mutableStateOf(modelDownloader.state.value) }
+            val coroutineScope = rememberCoroutineScope()
+
+            LaunchedEffect(modelDownloader) {
+                modelDownloader.state.collect {
+                    downloadState = it
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2A3E), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Offline Voice Model", color = AVAText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(2.dp))
+                    
+                    val subtext = when (val state = downloadState) {
+                        is ModelDownloader.DownloadState.Idle -> "Download local speech recognition model for silent wake word triggers (40MB)"
+                        is ModelDownloader.DownloadState.Checking -> "Checking storage..."
+                        is ModelDownloader.DownloadState.Downloading -> "Downloading: ${(state.progress * 100).toInt()}%"
+                        is ModelDownloader.DownloadState.Unzipping -> "Unpacking files to local storage..."
+                        is ModelDownloader.DownloadState.Success -> "Installed successfully! Continuous wake word ready."
+                        is ModelDownloader.DownloadState.Error -> "Error: ${state.message}"
+                    }
+                    Text(subtext, color = AVASubtext, fontSize = 11.sp)
+                    
+                    if (downloadState is ModelDownloader.DownloadState.Downloading) {
+                        Spacer(Modifier.height(8.dp))
+                        val progress = (downloadState as ModelDownloader.DownloadState.Downloading).progress
+                        LinearProgressIndicator(
+                            progress = progress,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = AVABlue,
+                            trackColor = Color.Gray.copy(alpha = 0.3f)
+                        )
+                    } else if (downloadState is ModelDownloader.DownloadState.Unzipping) {
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = AVABlue,
+                            trackColor = Color.Gray.copy(alpha = 0.3f)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                
+                when (downloadState) {
+                    is ModelDownloader.DownloadState.Idle, is ModelDownloader.DownloadState.Error -> {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    modelDownloader.downloadAndInstall()
+                                    // Refresh wake word listener after successful install
+                                    val intent = Intent(context, AVAAccessibilityService::class.java).apply {
+                                        action = AVAAccessibilityService.ACTION_REFRESH_NOTIFICATION
+                                    }
+                                    try {
+                                        context.startService(intent)
+                                    } catch (e: Exception) {}
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AVABlue),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("Download", fontSize = 11.sp)
+                        }
+                    }
+                    is ModelDownloader.DownloadState.Success -> {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(Color(0xFF81C784), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("✓", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    else -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = AVABlue,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(16.dp))

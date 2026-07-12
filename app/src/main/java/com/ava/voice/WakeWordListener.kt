@@ -1,20 +1,22 @@
 package com.ava.voice
 
 import android.content.Context
-import android.content.Intent
 import android.media.AudioManager
 import android.media.ToneGenerator
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import com.ava.util.AppLogger
 import kotlinx.coroutines.*
+import org.json.JSONObject
+import org.vosk.Model
+import org.vosk.Recognizer
+import org.vosk.android.SpeechService
+import org.vosk.android.RecognitionListener
+import java.io.File
 
 /**
- * WakeWordListener uses Android's native SpeechRecognizer in an infinite-session
- * continuous streaming mode to listen for "AVA" in real-time.
- * Uses partial results debouncing to support instant triggers and direct command redirection.
+ * WakeWordListener uses Vosk Offline Speech Recognition to continuously
+ * and silently monitor the microphone for the wake-word "AVA".
+ * Utilizes low-level AudioRecord stream capture (via Vosk SpeechService)
+ * with zero beeps and zero timeouts.
  */
 class WakeWordListener(
     private val context: Context,
@@ -22,66 +24,75 @@ class WakeWordListener(
 ) {
     private val TAG = "AVA:WakeWordListener"
     private val mainScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    
-    private var speechRecognizer: SpeechRecognizer? = null
-    private var recognizerIntent: Intent? = null
+    private val modelDir = File(context.filesDir, "vosk-model")
+
+    private var voskModel: Model? = null
+    private var voskRecognizer: Recognizer? = null
+    private var speechService: SpeechService? = null
     private var isListening = false
-    private var isBackingOff = false
-    private var triggerJob: Job? = null
 
     init {
-        mainScope.launch {
-            setupIntent()
+        mainScope.launch(Dispatchers.IO) {
+            try {
+                if (modelDir.exists() && modelDir.listFiles()?.isNotEmpty() == true) {
+                    AppLogger.d(TAG, "Loading Vosk Model from storage...")
+                    voskModel = Model(modelDir.absolutePath)
+                    voskRecognizer = Recognizer(voskModel, 16000.0f)
+                    AppLogger.i(TAG, "Vosk Model loaded successfully ✅")
+                } else {
+                    AppLogger.w(TAG, "Vosk Model not found on storage. Download required first.")
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to initialize Vosk Model: ${e.message}")
+            }
         }
     }
 
-    private fun setupIntent() {
-        recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            
-            // Set extremely high complete silence thresholds to maintain continuous mic streaming
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3600000L) // 1 hour
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3600000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3600000L)
-        }
-    }
-
-    /** Starts the native continuous streaming recognition loop */
+    /** Starts the continuous silent audio recording and recognition stream */
     fun start() {
         if (isListening) return
         isListening = true
-        isBackingOff = false
+
         mainScope.launch {
-            startListeningInternal()
+            // Ensure model is loaded. If not loaded, wait/retry
+            var retryCount = 0
+            while (voskRecognizer == null && retryCount < 10) {
+                delay(500)
+                retryCount++
+            }
+
+            val recognizer = voskRecognizer
+            if (recognizer == null) {
+                AppLogger.e(TAG, "Cannot start listening — Vosk Recognizer is not initialized.")
+                isListening = false
+                return@launch
+            }
+
+            try {
+                // Vosk SpeechService uses AudioRecord. There are no system beeps!
+                speechService = SpeechService(recognizer, 16000.0f).apply {
+                    startListening(VoskSpeechListener())
+                }
+                AppLogger.i(TAG, "Vosk continuous listening started silently (no beeps)")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to start Vosk SpeechService: ${e.message}")
+                isListening = false
+            }
         }
     }
 
-    /** Stops listening and releases the speech recognizer resource */
+    /** Stops the audio recording stream and releases resources */
     fun stop() {
         isListening = false
-        triggerJob?.cancel()
         mainScope.launch {
-            destroyRecognizer()
-        }
-    }
-
-    private fun muteSystemBeep() {
-        try {
-            audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0)
-        } catch (e: Exception) {
-            // Ignore
-        }
-    }
-
-    private fun unmuteSystemBeep() {
-        try {
-            audioManager.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0)
-        } catch (e: Exception) {
-            // Ignore
+            try {
+                speechService?.stop()
+                speechService?.shutdown()
+            } catch (e: Exception) {
+                // Ignore
+            } finally {
+                speechService = null
+            }
         }
     }
 
@@ -93,155 +104,77 @@ class WakeWordListener(
                 delay(200)
                 toneGen.release()
             } catch (e: Exception) {
-                // Ignore fallback
-            }
-        }
-    }
-
-    private fun startListeningInternal() {
-        if (!isListening || isBackingOff) return
-
-        destroyRecognizer() // Ensure previous resources are released
-
-        try {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                setRecognitionListener(SpeechListener())
-                
-                // Mute beep only once during the initial start
-                muteSystemBeep()
-                startListening(recognizerIntent)
-                mainScope.launch {
-                    delay(400)
-                    unmuteSystemBeep()
-                }
-            }
-            AppLogger.d(TAG, "Continuous speech stream started")
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Failed to start speech stream: ${e.message}")
-            unmuteSystemBeep()
-            triggerBackoff()
-        }
-    }
-
-    private fun destroyRecognizer() {
-        try {
-            speechRecognizer?.cancel()
-            speechRecognizer?.destroy()
-        } catch (e: Exception) {
-            // Ignore clean up errors
-        } finally {
-            speechRecognizer = null
-        }
-    }
-
-    private fun triggerBackoff() {
-        if (isBackingOff || !isListening) return
-        isBackingOff = true
-        AppLogger.w(TAG, "Microphone in use. Backing off for 3s...")
-        destroyRecognizer()
-        mainScope.launch {
-            delay(3000)
-            if (isListening) {
-                isBackingOff = false
-                startListeningInternal()
+                // Ignore
             }
         }
     }
 
     private fun triggerWake(command: String?) {
-        // Stop background stream to allow active dialog or execution to capture the audio channel
         stop()
         playWakeTone()
         onWakeWordDetected(command)
     }
 
-    private inner class SpeechListener : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {}
-        override fun onBeginningOfSpeech() {}
-        override fun onRmsChanged(rmsdB: Float) {}
-        override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() {}
-
-        override fun onError(error: Int) {
-            unmuteSystemBeep()
-
-            val errorMsg = when (error) {
-                SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                SpeechRecognizer.ERROR_CLIENT -> "Client side error"
-                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permissions missing"
-                SpeechRecognizer.ERROR_NETWORK -> "Network error"
-                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                SpeechRecognizer.ERROR_NO_MATCH -> "No speech match"
-                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
-                SpeechRecognizer.ERROR_SERVER -> "Server error"
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
-                else -> "Unknown error ($error)"
-            }
-
-            if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
-                AppLogger.w(TAG, "Speech stream paused: $errorMsg")
-                triggerBackoff()
-            } else {
-                // If it timed out after a long period of silence, silently restart the stream
-                mainScope.launch {
-                    delay(300)
-                    if (isListening && !isBackingOff) {
-                        startListeningInternal()
-                    }
-                }
-            }
+    private inner class VoskSpeechListener : RecognitionListener {
+        override fun onResult(hypothesis: String) {
+            parseResult(hypothesis, isFinal = true)
         }
 
-        override fun onResults(results: Bundle?) {
-            unmuteSystemBeep()
-            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            if (matches != null) {
-                processResults(matches)
-            }
-            // Continuous session fallback restart
+        override fun onPartialResult(hypothesis: String) {
+            parseResult(hypothesis, isFinal = false)
+        }
+
+        override fun onFinalResult(hypothesis: String) {
+            parseResult(hypothesis, isFinal = true)
+        }
+
+        override fun onError(exception: Exception) {
+            AppLogger.e(TAG, "Vosk SpeechListener error: ${exception.message}")
+            // Silently restart after cooldown
             mainScope.launch {
-                if (isListening && !isBackingOff) {
-                    startListeningInternal()
+                delay(1000)
+                if (isListening) {
+                    stop()
+                    start()
                 }
             }
         }
 
-        override fun onPartialResults(partialResults: Bundle?) {
-            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            if (matches != null) {
-                processResults(matches)
+        override fun onTimeout() {
+            AppLogger.d(TAG, "Vosk SpeechListener timeout (idle reset)")
+            mainScope.launch {
+                if (isListening) {
+                    stop()
+                    start()
+                }
             }
         }
 
-        override fun onEvent(eventType: Int, params: Bundle?) {}
+        private fun parseResult(jsonText: String, isFinal: Boolean) {
+            try {
+                val json = JSONObject(jsonText)
+                val text = if (isFinal) json.optString("text") else json.optString("partial")
+                if (text.isNullOrBlank()) return
 
-        private fun processResults(matches: ArrayList<String>) {
-            for (text in matches) {
                 val lowercase = text.lowercase()
                 val wakeWord = "ava"
                 if (lowercase.contains(wakeWord)) {
-                    // Cancel any active scheduled trigger
-                    triggerJob?.cancel()
-
                     val index = lowercase.indexOf(wakeWord)
                     val trailingPart = lowercase.substring(index + wakeWord.length).trim()
                     val cleanCommand = trailingPart.removePrefix(",").removePrefix("and").trim()
 
+                    AppLogger.i(TAG, "🔥 Vosk wake detected: \"$text\"")
+                    
                     if (cleanCommand.length > 2) {
-                        // Debounce by 650ms to verify if the user is still speaking a command
-                        triggerJob = mainScope.launch {
-                            delay(650)
-                            triggerWake(cleanCommand)
-                        }
-                    } else {
-                        // Trigger immediately on wake word pause
-                        triggerJob = mainScope.launch {
-                            delay(350)
-                            triggerWake(null)
-                        }
+                        // Direct voice command trigger
+                        triggerWake(cleanCommand)
+                    } else if (isFinal) {
+                        // Standard wake word trigger on silence pause
+                        triggerWake(null)
                     }
-                    break
                 }
+            } catch (e: Exception) {
+                // Ignore json parse error
             }
         }
     }

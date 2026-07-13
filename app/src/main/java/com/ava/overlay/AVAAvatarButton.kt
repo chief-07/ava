@@ -398,7 +398,7 @@ fun AVAAvatarButton(
             ) {
                 Column(
                     modifier = Modifier
-                        .width(280.dp)
+                        .requiredWidth(280.dp)
                         .heightIn(max = 150.dp)
                         .verticalScroll(rememberScrollState())
                         .padding(start = 16.dp, end = 16.dp, bottom = 14.dp)

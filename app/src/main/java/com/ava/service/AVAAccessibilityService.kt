@@ -59,6 +59,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private var wakeWordListener: WakeWordListener? = null
     private var speechInputJob: kotlinx.coroutines.Job? = null
     private var heartbeatJob: kotlinx.coroutines.Job? = null
+    private var autoDismissJob: kotlinx.coroutines.Job? = null
 
     // ─── Lifecycle & SavedState boilerplate ──────────────────────────────────
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -257,6 +258,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
         bannerContainer = null
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        autoDismissJob?.cancel()
+        autoDismissJob = null
         stopHeartbeat()
         wakeWordListener?.stop()
         wakeWordListener = null
@@ -330,6 +333,15 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
 
                     if (state.isDone || state.isError || state.needsUser) {
                         isUserExpandedState = true
+                    }
+
+                    // Auto-shrink to circle after 20s when Done or Error (not NeedsUser — user may still be reading the question)
+                    if (state.isDone || state.isError) {
+                        startAutoDismiss()
+                    } else if (state.isRunning) {
+                        // New task started — cancel any pending dismiss
+                        autoDismissJob?.cancel()
+                        autoDismissJob = null
                     }
                     
                     updateBannerFocus(state.needsUser)
@@ -491,6 +503,8 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         needsUserState = false
         isErrorState = false
         statusText = "Cancelled"
+        // Auto-shrink to circle after 20s
+        startAutoDismiss()
     }
 
     private fun stopTask() {
@@ -624,6 +638,15 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private fun stopHeartbeat() {
         heartbeatJob?.cancel()
         heartbeatJob = null
+    }
+
+    private fun startAutoDismiss() {
+        autoDismissJob?.cancel()
+        autoDismissJob = serviceScope.launch {
+            delay(20_000)
+            // Shrink to circle — preserves state, user can tap to re-expand
+            isUserExpandedState = false
+        }
     }
 
     private fun triggerSpeechInput() {

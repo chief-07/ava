@@ -193,10 +193,11 @@ class WakeWordListener(
                 if (text.isNullOrBlank()) return
 
                 val lowercase = text.lowercase()
-                val wakeWord = "ava"
-                if (lowercase.contains(wakeWord)) {
-                    val index = lowercase.indexOf(wakeWord)
-                    val trailingPart = lowercase.substring(index + wakeWord.length).trim()
+                val wakeWords = listOf("ava", "alice")
+                val matchedWakeWord = wakeWords.find { lowercase.contains(it) }
+                if (matchedWakeWord != null) {
+                    val index = lowercase.indexOf(matchedWakeWord)
+                    val trailingPart = lowercase.substring(index + matchedWakeWord.length).trim()
                     val cleanCommand = trailingPart.removePrefix(",").removePrefix("and").trim()
 
                     AppLogger.i(TAG, "🔥 Vosk wake detected: \"$text\"")

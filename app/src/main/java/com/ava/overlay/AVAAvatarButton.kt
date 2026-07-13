@@ -296,14 +296,27 @@ fun AVAAvatarButton(
                             )
                             
                             if (isListening) {
-                                Text(
-                                    text = if (liveTranscription.isBlank()) "Listening..." else liveTranscription,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    fontStyle = FontStyle.Normal,
-                                    maxLines = 1
-                                )
+                                if (liveTranscription.isBlank()) {
+                                    // AVA state label — Semi-Bold Italic
+                                    Text(
+                                        text = "Listening...",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontStyle = FontStyle.Italic,
+                                        maxLines = 1
+                                    )
+                                } else {
+                                    // User's spoken words — Normal (visually distinct from AVA)
+                                    Text(
+                                        text = liveTranscription,
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        fontStyle = FontStyle.Normal,
+                                        maxLines = 1
+                                    )
+                                }
                             } else if (isThinking) {
                                 Text(
                                     text = "Thinking...",

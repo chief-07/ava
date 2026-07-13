@@ -387,13 +387,15 @@ fun AVAAvatarButton(
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioLowBouncy,
                         stiffness = Spring.StiffnessMedium
-                    )
+                    ),
+                    expandFrom = Alignment.Top
                 ) + fadeIn(animationSpec = tween(200)),
                 exit = androidx.compose.animation.shrinkVertically(
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioLowBouncy,
                         stiffness = Spring.StiffnessMedium
-                    )
+                    ),
+                    shrinkTowards = Alignment.Top
                 ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(

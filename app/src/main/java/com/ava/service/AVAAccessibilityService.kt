@@ -58,6 +58,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
     private lateinit var speechInput: SpeechInput
     private var wakeWordListener: WakeWordListener? = null
     private var speechInputJob: kotlinx.coroutines.Job? = null
+    private var heartbeatJob: kotlinx.coroutines.Job? = null
 
     // ─── Lifecycle & SavedState boilerplate ──────────────────────────────────
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -239,6 +240,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
             lifecycleRegistry.currentState = Lifecycle.State.RESUMED
             AppLogger.i(TAG, "Banner shown directly by Accessibility Service ✅")
             initWakeWordListener()
+            startHeartbeat()
             updatePersistentNotification()
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to show banner: ${e.message}")
@@ -255,6 +257,7 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         }
         bannerContainer = null
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        stopHeartbeat()
         wakeWordListener?.stop()
         wakeWordListener = null
         updatePersistentNotification()

@@ -29,7 +29,8 @@ class WakeWordListener(
     private var voskModel: Model? = null
     private var voskRecognizer: Recognizer? = null
     private var speechService: SpeechService? = null
-    private var isListening = false
+    var isListening = false
+        private set
 
     init {
         mainScope.launch(Dispatchers.IO) {

@@ -608,6 +608,24 @@ class AVAAccessibilityService : AccessibilityService(), LifecycleOwner, SavedSta
         AppLogger.i(TAG, "Wake word listener initialized successfully")
     }
 
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = serviceScope.launch {
+            while (isActive) {
+                delay(3000)
+                if (wakeWordListener?.isListening == false) {
+                    AppLogger.w(TAG, "Heartbeat detected Vosk listener died. Restarting...")
+                    initWakeWordListener()
+                }
+            }
+        }
+    }
+
+    private fun stopHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
+
     private fun triggerSpeechInput() {
         speechInputJob?.cancel()
         speechInputJob = serviceScope.launch {

@@ -383,8 +383,18 @@ fun AVAAvatarButton(
             
             AnimatedVisibility(
                 visible = showExtendedText,
-                enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
-                exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(250)) + fadeOut(animationSpec = tween(200))
+                enter = expandVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                ) + fadeIn(animationSpec = tween(200)),
+                exit = androidx.compose.animation.shrinkVertically(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                ) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
                     modifier = Modifier

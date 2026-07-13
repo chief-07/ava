@@ -297,13 +297,14 @@ fun AVAAvatarButton(
                             
                             if (isListening) {
                                 if (liveTranscription.isBlank()) {
-                                    // AVA state label — Semi-Bold Italic
+                                    // AVA state label — Semi-Bold Italic, pulsing
                                     Text(
-                                        text = "Listening...",
+                                        text = "Listening",
                                         color = Color.White,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         fontStyle = FontStyle.Italic,
+                                        modifier = Modifier.graphicsLayer { alpha = thinkingAlpha },
                                         maxLines = 1
                                     )
                                 } else {
@@ -318,8 +319,9 @@ fun AVAAvatarButton(
                                     )
                                 }
                             } else if (isThinking) {
+                                val thinkingLabel = if (statusText.startsWith("Starting", ignoreCase = true)) "AVA" else "Thinking"
                                 Text(
-                                    text = "Thinking...",
+                                    text = thinkingLabel,
                                     color = Color.White,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -345,6 +347,7 @@ fun AVAAvatarButton(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     fontStyle = FontStyle.Italic,
+                                    modifier = Modifier.graphicsLayer { alpha = thinkingAlpha },
                                     maxLines = 1
                                 )
                             }
